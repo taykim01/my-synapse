@@ -55,16 +55,20 @@ export function GalaxyCanvas() {
     if (prevLinks > 0 && links.length > prevLinks) {
       const newLinks = links.slice(prevLinks);
       newLinks.forEach(link => {
-        const source = nodes.find(n => n.id === link.source);
         const target = nodes.find(n => n.id === link.target);
-        if (source && target) {
-          const isDetailedCreation = target.type === 'detailed_keyword';
-          flashesRef.current.push({
-            x1: source.x, y1: source.y,
-            x2: target.x, y2: target.y,
+        if (target) {
+          const isDetailed = target.type === 'detailed_keyword';
+          const particleCount = isDetailed ? 24 : 16;
+          birthsRef.current.push({
+            x: target.x, y: target.y,
             birth: performance.now(),
-            duration: isDetailedCreation ? 2500 : 1500,
-            color: isDetailedCreation ? '#a78bfa' : '#60a5fa',
+            duration: isDetailed ? 2000 : 1200,
+            color: isDetailed ? '#a78bfa' : target.type === 'capture' ? '#ffffff' : '#60a5fa',
+            particles: Array.from({ length: particleCount }, () => ({
+              angle: Math.random() * Math.PI * 2,
+              speed: 20 + Math.random() * 60,
+              size: 1 + Math.random() * 2.5,
+            })),
           });
         }
       });
