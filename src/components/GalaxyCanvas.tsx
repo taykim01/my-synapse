@@ -538,6 +538,18 @@ export function GalaxyCanvas() {
     let startY = 0;
     let isMoved = false;
 
+    // Pinch zoom state
+    let lastPinchDist = 0;
+    let isPinching = false;
+
+    const getTouchPos = (touch: Touch) => {
+      const { width, height, camera } = graphRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const x = (touch.clientX - rect.left - width / 2 - camera.x) / camera.zoom;
+      const y = (touch.clientY - rect.top - height / 2 - camera.y) / camera.zoom;
+      return { x, y };
+    };
+
     const getMousePos = (e: MouseEvent) => {
       const { width, height, camera } = graphRef.current;
       const rect = canvas.getBoundingClientRect();
@@ -546,6 +558,13 @@ export function GalaxyCanvas() {
       return { x, y };
     };
 
+    const getPinchDist = (touches: TouchList) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    // --- Mouse events ---
     const handleMouseDown = (e: MouseEvent) => {
       const { x, y } = getMousePos(e);
       startX = e.clientX;
@@ -600,14 +619,91 @@ export function GalaxyCanvas() {
       cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * zoomFactor));
     };
 
+    // --- Touch events ---
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        isPinching = true;
+        lastPinchDist = getPinchDist(e.touches);
+        return;
+      }
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const { x, y } = getTouchPos(touch);
+        startX = touch.clientX;
+        startY = touch.clientY;
+        isMoved = false;
+        let nodeClicked = false;
+
+        for (let i = nodes.length - 1; i >= 0; i--) {
+          const node = nodes[i];
+          const dx = node.x - x;
+          const dy = node.y - y;
+          if (Math.sqrt(dx * dx + dy * dy) < 25) {
+            graphRef.current.draggedNode = node;
+            isDragging = true;
+            nodeClicked = true;
+            break;
+          }
+        }
+        if (!nodeClicked) {
+          setSelectedNode(null);
+        }
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isPinching && e.touches.length === 2) {
+        e.preventDefault();
+        const newDist = getPinchDist(e.touches);
+        const scale = newDist / lastPinchDist;
+        const cam = graphRef.current.camera;
+        cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * scale));
+        lastPinchDist = newDist;
+        return;
+      }
+      if (isDragging && graphRef.current.draggedNode && e.touches.length === 1) {
+        const touch = e.touches[0];
+        if (Math.abs(touch.clientX - startX) > 3 || Math.abs(touch.clientY - startY) > 3) {
+          isMoved = true;
+        }
+        const { x, y } = getTouchPos(touch);
+        graphRef.current.draggedNode.x = x;
+        graphRef.current.draggedNode.y = y;
+        graphRef.current.draggedNode.vx = 0;
+        graphRef.current.draggedNode.vy = 0;
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (isPinching) {
+        if (e.touches.length < 2) isPinching = false;
+        return;
+      }
+      if (isDragging && graphRef.current.draggedNode && !isMoved) {
+        const clickedType = graphRef.current.draggedNode.type;
+        if (clickedType === 'capture' || clickedType === 'keyword') {
+          setSelectedNode(graphRef.current.draggedNode);
+        }
+      }
+      isDragging = false;
+      graphRef.current.draggedNode = null;
+    };
+
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('wheel', handleWheel, { passive: false });
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
       canvas.removeEventListener('mousedown', handleMouseDown);
       canvas.removeEventListener('wheel', handleWheel);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
