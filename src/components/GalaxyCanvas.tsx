@@ -103,6 +103,24 @@ export function GalaxyCanvas() {
         centerNode.fy += (0 - centerNode.y) * 0.05;
       }
 
+      // Slow orbital rotation for center, keyword, detailed_keyword nodes
+      const orbitSpeed = 0.0003;
+      nodes.forEach(node => {
+        if (node === draggedNode) return;
+        if (node.type === 'center' || node.type === 'keyword' || node.type === 'detailed_keyword') {
+          const cx = 0;
+          const cy = 0;
+          const dx = node.x - cx;
+          const dy = node.y - cy;
+          const cosA = Math.cos(orbitSpeed);
+          const sinA = Math.sin(orbitSpeed);
+          const rx = dx * cosA - dy * sinA;
+          const ry = dx * sinA + dy * cosA;
+          node.fx += (cx + rx - node.x) * 0.5;
+          node.fy += (cy + ry - node.y) * 0.5;
+        }
+      });
+
       // Update positions
       nodes.forEach(node => {
         if (node === draggedNode) return;
