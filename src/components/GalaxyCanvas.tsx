@@ -341,52 +341,75 @@ export function GalaxyCanvas() {
       });
       ctx.globalCompositeOperation = 'source-over';
 
-      // ===== DISCOVERY FLASH ANIMATIONS =====
-      flashesRef.current = flashesRef.current.filter(f => now - f.birth < f.duration);
-      flashesRef.current.forEach(flash => {
-        const progress = (now - flash.birth) / flash.duration;
-        const fadeIn = Math.min(progress * 4, 1);
-        const fadeOut = progress > 0.6 ? 1 - (progress - 0.6) / 0.4 : 1;
-        const alpha = fadeIn * fadeOut;
+      // ===== STAR BIRTH EXPLOSIONS =====
+      birthsRef.current = birthsRef.current.filter(b => now - b.birth < b.duration);
+      birthsRef.current.forEach(birth => {
+        const progress = (now - birth.birth) / birth.duration;
 
-        // Travelling pulse along the link
-        const pulsePos = progress;
-        const px = flash.x1 + (flash.x2 - flash.x1) * pulsePos;
-        const py = flash.y1 + (flash.y2 - flash.y1) * pulsePos;
-
-        // Glowing connection line
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
-        ctx.strokeStyle = flash.color;
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = alpha * 0.8;
-        ctx.shadowColor = flash.color;
-        ctx.shadowBlur = 20;
-        ctx.beginPath();
-        ctx.moveTo(flash.x1, flash.y1);
-        ctx.lineTo(flash.x2, flash.y2);
-        ctx.stroke();
 
-        // Pulse particle
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = flash.color;
-        ctx.shadowBlur = 40;
-        ctx.shadowColor = flash.color;
-        ctx.beginPath();
-        ctx.arc(px, py, 5 * (1 - progress * 0.5), 0, Math.PI * 2);
-        ctx.fill();
-
-        // Burst ring at destination when completing
-        if (progress > 0.7) {
-          const ringProgress = (progress - 0.7) / 0.3;
-          const ringRadius = 10 + ringProgress * 30;
-          ctx.globalAlpha = (1 - ringProgress) * alpha * 0.6;
-          ctx.strokeStyle = flash.color;
-          ctx.lineWidth = 1.5;
-          ctx.shadowBlur = 15;
+        // 1) Initial bright flash (first 30%)
+        if (progress < 0.3) {
+          const flashAlpha = (1 - progress / 0.3);
+          const flashRadius = 8 + progress * 80;
+          const g = ctx.createRadialGradient(birth.x, birth.y, 0, birth.x, birth.y, flashRadius);
+          g.addColorStop(0, `rgba(255, 255, 255, ${flashAlpha * 0.9})`);
+          g.addColorStop(0.3, birth.color);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.globalAlpha = flashAlpha;
+          ctx.fillStyle = g;
           ctx.beginPath();
-          ctx.arc(flash.x2, flash.y2, ringRadius, 0, Math.PI * 2);
+          ctx.arc(birth.x, birth.y, flashRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 2) Expanding shockwave rings
+        const ringCount = 2;
+        for (let r = 0; r < ringCount; r++) {
+          const ringDelay = r * 0.15;
+          const ringProgress = Math.max(0, progress - ringDelay);
+          if (ringProgress <= 0 || ringProgress > 0.8) continue;
+          const rp = ringProgress / 0.8;
+          const ringRadius = rp * 50;
+          const ringAlpha = (1 - rp) * 0.6;
+          ctx.globalAlpha = ringAlpha;
+          ctx.strokeStyle = birth.color;
+          ctx.lineWidth = 1.5 * (1 - rp);
+          ctx.shadowColor = birth.color;
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.arc(birth.x, birth.y, ringRadius, 0, Math.PI * 2);
           ctx.stroke();
+        }
+
+        // 3) Particle debris flying outward
+        const particleFade = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8);
+        birth.particles.forEach(p => {
+          const dist = p.speed * progress;
+          const px = birth.x + Math.cos(p.angle) * dist;
+          const py = birth.y + Math.sin(p.angle) * dist;
+          const size = p.size * (1 - progress * 0.7);
+          if (size <= 0) return;
+          ctx.globalAlpha = particleFade * 0.9;
+          ctx.fillStyle = birth.color;
+          ctx.shadowColor = birth.color;
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.arc(px, py, size, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        // 4) Lingering core glow
+        if (progress < 0.6) {
+          const coreAlpha = (1 - progress / 0.6) * 0.8;
+          ctx.globalAlpha = coreAlpha;
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = birth.color;
+          ctx.shadowBlur = 25;
+          ctx.beginPath();
+          ctx.arc(birth.x, birth.y, 3 * (1 - progress), 0, Math.PI * 2);
+          ctx.fill();
         }
 
         ctx.restore();
