@@ -25,7 +25,7 @@ export function GalaxyCanvas() {
     height: 0,
     camera: { x: 0, y: 0, zoom: 1, targetX: 0 },
   });
-  const flashesRef = useRef<DiscoveryFlash[]>([]);
+  const birthsRef = useRef<StarBirth[]>([]);
   const nebulaeRef = useRef<NebulaPatch[]>([]);
   const prevNodeCountRef = useRef(0);
   const prevLinkCountRef = useRef(0);
