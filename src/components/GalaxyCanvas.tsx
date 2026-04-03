@@ -141,8 +141,12 @@ export function GalaxyCanvas() {
       ctx.translate(width / 2 + camera.x, height / 2 + camera.y);
       ctx.scale(camera.zoom, camera.zoom);
 
-      // Background stars
+      // Background stars (slowly drifting)
+      time++;
       backgroundStars.forEach(star => {
+        const a = star.angle + time * star.speed;
+        star.x = Math.cos(a) * star.dist;
+        star.y = Math.sin(a) * star.dist;
         ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
