@@ -40,12 +40,21 @@ export function GalaxyCanvas() {
     window.addEventListener('resize', resize);
     resize();
 
-    const backgroundStars = Array.from({ length: 200 }).map(() => ({
-      x: Math.random() * 3000 - 1500,
-      y: Math.random() * 3000 - 1500,
-      size: Math.random() * 1.5,
-      opacity: Math.random() * 0.5 + 0.1,
-    }));
+    const backgroundStars = Array.from({ length: 200 }).map(() => {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 1500;
+      return {
+        angle,
+        dist,
+        x: Math.cos(angle) * dist,
+        y: Math.sin(angle) * dist,
+        size: Math.random() * 1.5,
+        opacity: Math.random() * 0.5 + 0.1,
+        speed: (Math.random() * 0.00003 + 0.00001), // very slow orbital speed
+      };
+    });
+
+    let time = 0;
 
     const simulate = () => {
       const { draggedNode } = graphRef.current;
