@@ -1,9 +1,10 @@
 import { useRef, useEffect } from 'react';
 import { useGalaxyStore, type GraphNode } from '@/stores/galaxyStore';
 
-interface DiscoveryFlash {
-  x1: number; y1: number; x2: number; y2: number;
+interface StarBirth {
+  x: number; y: number;
   birth: number; duration: number; color: string;
+  particles: { angle: number; speed: number; size: number }[];
 }
 
 interface NebulaPatch {
