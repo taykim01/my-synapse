@@ -597,7 +597,7 @@ export function GalaxyCanvas() {
       e.preventDefault();
       const zoomFactor = e.deltaY > 0 ? 0.92 : 1.08;
       const cam = graphRef.current.camera;
-      cam.zoom = Math.max(0.3, Math.min(3, cam.zoom * zoomFactor));
+      cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * zoomFactor));
     };
 
     canvas.addEventListener('mousedown', handleMouseDown);
