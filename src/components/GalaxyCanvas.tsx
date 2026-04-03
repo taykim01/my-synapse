@@ -415,15 +415,34 @@ export function GalaxyCanvas() {
         ctx.restore();
       });
 
+      // ===== LEVEL OF DETAIL (zoom-based visibility) =====
+      const zoom = camera.zoom;
+      // At low zoom, hide lower-level nodes to prevent overlap
+      // captures visible above 0.6, detailed_keywords visible above 0.35
+      const showCaptures = zoom > 0.6;
+      const showDetailed = zoom > 0.35;
+      // Smooth fade transitions
+      const captureAlpha = showCaptures ? Math.min(1, (zoom - 0.6) / 0.15) : 0;
+      const detailedAlpha = showDetailed ? Math.min(1, (zoom - 0.35) / 0.1) : 0;
+
       // ===== LINKS =====
       links.forEach(link => {
         const source = nodes.find(n => n.id === link.source);
         const target = nodes.find(n => n.id === link.target);
         if (!source || !target) return;
+
+        // Hide links to hidden nodes
+        if (target.type === 'capture' && !showCaptures) return;
+        if (target.type === 'detailed_keyword' && !showDetailed) return;
+
+        let linkAlpha = 0.15;
+        if (target.type === 'capture') linkAlpha *= captureAlpha;
+        else if (target.type === 'detailed_keyword') linkAlpha *= detailedAlpha;
+
         ctx.beginPath();
         ctx.moveTo(source.x, source.y);
         ctx.lineTo(target.x, target.y);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.strokeStyle = `rgba(255, 255, 255, ${linkAlpha})`;
         ctx.lineWidth = 0.8;
         ctx.stroke();
       });
@@ -433,6 +452,10 @@ export function GalaxyCanvas() {
 
       // ===== NODES =====
       nodes.forEach(node => {
+        // Skip hidden nodes based on LOD
+        if (node.type === 'capture' && !showCaptures && !(searchQuery && searchHighlightNodes.has(node.id))) return;
+        if (node.type === 'detailed_keyword' && !showDetailed) return;
+
         ctx.beginPath();
         let radius = 5;
         ctx.fillStyle = '#ffffff';
@@ -456,14 +479,21 @@ export function GalaxyCanvas() {
           ctx.shadowColor = '#ffffff';
         }
 
+        // Apply LOD fade
+        let nodeAlpha = 1;
+        if (node.type === 'capture') nodeAlpha = captureAlpha;
+        else if (node.type === 'detailed_keyword') nodeAlpha = detailedAlpha;
+
         if (searchQuery && searchHighlightNodes.has(node.id)) {
           radius *= 2;
           ctx.shadowBlur = 30;
           ctx.shadowColor = '#10b981';
+          nodeAlpha = 1; // always fully visible if search-matched
         } else if (searchQuery) {
-          ctx.globalAlpha = 0.2;
+          nodeAlpha *= 0.2;
         }
 
+        ctx.globalAlpha = nodeAlpha;
         ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur = 0;
@@ -471,10 +501,14 @@ export function GalaxyCanvas() {
 
         // Labels
         if (node.type !== 'capture' || (searchQuery && searchHighlightNodes.has(node.id))) {
-          ctx.font = node.type === 'center' ? 'bold 14px sans-serif' : '11px sans-serif';
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-          ctx.textAlign = 'center';
-          ctx.fillText(node.title, node.x, node.y + radius + 15);
+          if (nodeAlpha > 0.3) {
+            ctx.globalAlpha = nodeAlpha;
+            ctx.font = node.type === 'center' ? 'bold 14px sans-serif' : '11px sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.textAlign = 'center';
+            ctx.fillText(node.title, node.x, node.y + radius + 15);
+            ctx.globalAlpha = 1.0;
+          }
         }
       });
 
@@ -563,7 +597,7 @@ export function GalaxyCanvas() {
       e.preventDefault();
       const zoomFactor = e.deltaY > 0 ? 0.92 : 1.08;
       const cam = graphRef.current.camera;
-      cam.zoom = Math.max(0.3, Math.min(3, cam.zoom * zoomFactor));
+      cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * zoomFactor));
     };
 
     canvas.addEventListener('mousedown', handleMouseDown);
