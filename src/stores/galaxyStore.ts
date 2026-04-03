@@ -1,182 +1,179 @@
 import { create } from 'zustand';
-import type { GalaxyNode, Connection, CaptureInput } from '@/types/galaxy';
 
-const KEYWORDS_COLORS = [
-  'hsl(260, 60%, 65%)',  // purple
-  'hsl(165, 70%, 50%)',  // teal
-  'hsl(40, 85%, 78%)',   // warm
-  'hsl(200, 70%, 60%)',  // blue
-  'hsl(330, 60%, 65%)',  // pink
-  'hsl(120, 50%, 55%)',  // green
-  'hsl(280, 50%, 70%)',  // lavender
-  'hsl(20, 80%, 65%)',   // orange
-];
+const generateId = () => Math.random().toString(36).substr(2, 9);
+const randomRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
-function positionAroundCenter(index: number, total: number, radius: number) {
-  const angle = (2 * Math.PI * index) / total - Math.PI / 2;
-  return {
-    x: Math.cos(angle) * radius,
-    y: Math.sin(angle) * radius,
-  };
+export interface GraphNode {
+  id: string;
+  type: 'center' | 'keyword' | 'detailed_keyword' | 'capture';
+  title: string;
+  body?: string;
+  tags?: string[];
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  fx: number;
+  fy: number;
 }
 
-function generateId() {
-  return Math.random().toString(36).substr(2, 9);
+export interface GraphLink {
+  source: string;
+  target: string;
 }
 
 interface GalaxyState {
-  nodes: GalaxyNode[];
-  connections: Connection[];
-  keywords: string[];
-  isOnboarded: boolean;
-  captureModalOpen: boolean;
-  selectedNode: GalaxyNode | null;
+  gameState: 'onboarding' | 'exploring';
+  nodes: GraphNode[];
+  links: GraphLink[];
+  selectedNode: GraphNode | null;
+  activeNode: GraphNode | null;
+  isAddingCapture: boolean;
+  searchQuery: string;
+  searchResults: GraphNode[];
+  captureForm: { title: string; body: string; tag: string };
 
-  setOnboarded: (keywords: string[]) => void;
-  addCapture: (input: CaptureInput) => void;
+  startExploration: (keywords: string[]) => void;
+  addCapture: () => void;
+  setSelectedNode: (node: GraphNode | null) => void;
+  setIsAddingCapture: (v: boolean) => void;
+  setCaptureForm: (form: { title: string; body: string; tag: string }) => void;
+  handleSearch: (query: string) => void;
+  getConnectedCaptures: (keywordId: string) => GraphNode[];
   openCaptureModal: () => void;
-  closeCaptureModal: () => void;
-  selectNode: (node: GalaxyNode | null) => void;
-  updateNodePosition: (id: string, x: number, y: number) => void;
-  resetNodePosition: (id: string) => void;
 }
 
 export const useGalaxyStore = create<GalaxyState>((set, get) => ({
+  gameState: 'onboarding',
   nodes: [],
-  connections: [],
-  keywords: [],
-  isOnboarded: false,
-  captureModalOpen: false,
+  links: [],
   selectedNode: null,
+  activeNode: null,
+  isAddingCapture: false,
+  searchQuery: '',
+  searchResults: [],
+  captureForm: { title: '', body: '', tag: '' },
 
-  setOnboarded: (keywords) => {
-    const centerNode: GalaxyNode = {
-      id: 'center',
-      type: 'center',
-      label: '나',
-      x: 0,
-      y: 0,
-      originX: 0,
-      originY: 0,
-      size: 40,
-      color: 'hsl(260, 80%, 75%)',
-      glowIntensity: 1,
-    };
+  startExploration: (keywords: string[]) => {
+    const validKeywords = keywords.filter(k => k.trim() !== '');
+    if (validKeywords.length === 0) return;
 
-    const keywordNodes: GalaxyNode[] = keywords.map((kw, i) => {
-      const pos = positionAroundCenter(i, keywords.length, 220);
-      return {
-        id: `kw-${generateId()}`,
-        type: 'keyword' as const,
-        label: kw,
-        x: pos.x,
-        y: pos.y,
-        originX: pos.x,
-        originY: pos.y,
-        size: 18,
-        color: KEYWORDS_COLORS[i % KEYWORDS_COLORS.length],
-        glowIntensity: 0.3,
-        captureCount: 0,
-      };
+    const nodes: GraphNode[] = [];
+    const links: GraphLink[] = [];
+
+    const centerId = generateId();
+    nodes.push({ id: centerId, type: 'center', title: '나의 우주', x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0 });
+
+    validKeywords.forEach((kw, i) => {
+      const id = generateId();
+      const angle = (i / validKeywords.length) * Math.PI * 2;
+      nodes.push({
+        id, type: 'keyword', title: kw,
+        x: Math.cos(angle) * 100, y: Math.sin(angle) * 100, vx: 0, vy: 0, fx: 0, fy: 0
+      });
+      links.push({ source: centerId, target: id });
     });
 
-    const connections: Connection[] = keywordNodes.map(kn => ({
-      id: `conn-${generateId()}`,
-      from: 'center',
-      to: kn.id,
-      strength: 0.5,
-    }));
-
-    set({
-      nodes: [centerNode, ...keywordNodes],
-      connections,
-      keywords,
-      isOnboarded: true,
-    });
+    set({ nodes, links, gameState: 'exploring' });
   },
 
-  addCapture: (input) => {
+  addCapture: () => {
     const state = get();
-    const keywordNodes = state.nodes.filter(n => n.type === 'keyword');
+    const { captureForm, nodes, links } = state;
+    if (!captureForm.title.trim()) return;
 
-    // Simple matching: find the best keyword by checking if tags or title contain keyword label
-    let bestMatch = keywordNodes[0];
-    let bestScore = 0;
-    for (const kn of keywordNodes) {
-      const searchStr = `${input.title} ${input.body} ${input.tags.join(' ')}`.toLowerCase();
-      const kwLower = kn.label.toLowerCase();
-      if (searchStr.includes(kwLower)) {
-        const score = kwLower.length;
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = kn;
-        }
-      }
+    const assignedTag = captureForm.tag || `AI_Tag_${Math.floor(Math.random() * 100)}`;
+    const keywordNodes = nodes.filter(n => n.type === 'keyword');
+    const targetKeyword = keywordNodes[Math.floor(Math.random() * keywordNodes.length)];
+    if (!targetKeyword) return;
+
+    const connectedLinks = links.filter(l => l.target === targetKeyword.id || l.source === targetKeyword.id);
+    let targetId = targetKeyword.id;
+
+    const newNodes = [...nodes];
+    const newLinks = [...links];
+
+    if (connectedLinks.length > 2 && Math.random() > 0.3) {
+      const detailedId = generateId();
+      newNodes.push({
+        id: detailedId, type: 'detailed_keyword', title: `#${assignedTag}`,
+        x: targetKeyword.x + randomRange(-20, 20), y: targetKeyword.y + randomRange(-20, 20),
+        vx: 0, vy: 0, fx: 0, fy: 0
+      });
+      newLinks.push({ source: targetKeyword.id, target: detailedId });
+      targetId = detailedId;
     }
 
-    if (!bestMatch) bestMatch = keywordNodes[0];
-
-    // Position capture near the matched keyword
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 60 + Math.random() * 40;
-    const cx = bestMatch.x + Math.cos(angle) * dist;
-    const cy = bestMatch.y + Math.sin(angle) * dist;
-
-    const captureNode: GalaxyNode = {
-      id: `cap-${generateId()}`,
-      type: 'capture',
-      label: input.title,
-      title: input.title,
-      body: input.body,
-      tags: input.tags,
-      x: cx,
-      y: cy,
-      originX: cx,
-      originY: cy,
-      size: 8,
-      color: bestMatch.color,
-      glowIntensity: 0.8,
-    };
-
-    const conn: Connection = {
-      id: `conn-${generateId()}`,
-      from: bestMatch.id,
-      to: captureNode.id,
-      strength: 0.7,
-    };
-
-    // Update keyword glow
-    const updatedNodes = state.nodes.map(n => {
-      if (n.id === bestMatch.id) {
-        const newCount = (n.captureCount || 0) + 1;
-        return {
-          ...n,
-          captureCount: newCount,
-          glowIntensity: Math.min(1, 0.3 + newCount * 0.15),
-          size: Math.min(28, 18 + newCount * 1.5),
-        };
-      }
-      return n;
+    const parentNode = newNodes.find(n => n.id === targetId)!;
+    const captureId = generateId();
+    newNodes.push({
+      id: captureId, type: 'capture', title: captureForm.title, body: captureForm.body, tags: [assignedTag],
+      x: parentNode.x + randomRange(-30, 30), y: parentNode.y + randomRange(-30, 30),
+      vx: 0, vy: 0, fx: 0, fy: 0
     });
+    newLinks.push({ source: targetId, target: captureId });
 
     set({
-      nodes: [...updatedNodes, captureNode],
-      connections: [...state.connections, conn],
-      captureModalOpen: false,
+      nodes: newNodes,
+      links: newLinks,
+      captureForm: { title: '', body: '', tag: '' },
+      isAddingCapture: false,
     });
   },
 
-  openCaptureModal: () => set({ captureModalOpen: true }),
-  closeCaptureModal: () => set({ captureModalOpen: false }),
-  selectNode: (node) => set({ selectedNode: node }),
-  updateNodePosition: (id, x, y) => {
+  setSelectedNode: (node) => {
     set(state => ({
-      nodes: state.nodes.map(n => n.id === id ? { ...n, x, y } : n),
+      selectedNode: node,
+      activeNode: node || state.activeNode,
     }));
   },
-  resetNodePosition: (id) => {
-    set(state => ({
-      nodes: state.nodes.map(n => n.id === id ? { ...n, x: n.originX, y: n.originY } : n),
-    }));
+
+  setIsAddingCapture: (v) => set({ isAddingCapture: v }),
+
+  setCaptureForm: (form) => set({ captureForm: form }),
+
+  openCaptureModal: () => {
+    set({
+      isAddingCapture: true,
+      captureForm: { title: '', body: '', tag: 'AI제안_태그' },
+    });
+  },
+
+  handleSearch: (query: string) => {
+    const q = query.toLowerCase();
+    set({ searchQuery: query });
+    if (!q) {
+      set({ searchResults: [] });
+      return;
+    }
+    const results = get().nodes.filter(n =>
+      n.type !== 'center' && (n.title.toLowerCase().includes(q) || (n.body && n.body.toLowerCase().includes(q)))
+    );
+    set({ searchResults: results });
+  },
+
+  getConnectedCaptures: (keywordId: string) => {
+    const { nodes, links } = get();
+    const targetIds = [keywordId];
+
+    links.forEach(l => {
+      if (l.source === keywordId) {
+        const targetNode = nodes.find(n => n.id === l.target);
+        if (targetNode && targetNode.type === 'detailed_keyword') {
+          targetIds.push(targetNode.id);
+        }
+      }
+    });
+
+    const captures: GraphNode[] = [];
+    links.forEach(l => {
+      if (targetIds.includes(l.source)) {
+        const targetNode = nodes.find(n => n.id === l.target);
+        if (targetNode && targetNode.type === 'capture') {
+          captures.push(targetNode);
+        }
+      }
+    });
+    return captures;
   },
 }));
