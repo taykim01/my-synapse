@@ -40,12 +40,21 @@ export function GalaxyCanvas() {
     window.addEventListener('resize', resize);
     resize();
 
-    const backgroundStars = Array.from({ length: 200 }).map(() => ({
-      x: Math.random() * 3000 - 1500,
-      y: Math.random() * 3000 - 1500,
-      size: Math.random() * 1.5,
-      opacity: Math.random() * 0.5 + 0.1,
-    }));
+    const backgroundStars = Array.from({ length: 200 }).map(() => {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 1500;
+      return {
+        angle,
+        dist,
+        x: Math.cos(angle) * dist,
+        y: Math.sin(angle) * dist,
+        size: Math.random() * 1.5,
+        opacity: Math.random() * 0.5 + 0.1,
+        speed: (Math.random() * 0.00003 + 0.00001), // very slow orbital speed
+      };
+    });
+
+    let time = 0;
 
     const simulate = () => {
       const { draggedNode } = graphRef.current;
@@ -94,6 +103,24 @@ export function GalaxyCanvas() {
         centerNode.fy += (0 - centerNode.y) * 0.05;
       }
 
+      // Slow orbital rotation for center, keyword, detailed_keyword nodes
+      const orbitSpeed = 0.0003;
+      nodes.forEach(node => {
+        if (node === draggedNode) return;
+        if (node.type === 'center' || node.type === 'keyword' || node.type === 'detailed_keyword') {
+          const cx = 0;
+          const cy = 0;
+          const dx = node.x - cx;
+          const dy = node.y - cy;
+          const cosA = Math.cos(orbitSpeed);
+          const sinA = Math.sin(orbitSpeed);
+          const rx = dx * cosA - dy * sinA;
+          const ry = dx * sinA + dy * cosA;
+          node.fx += (cx + rx - node.x) * 0.5;
+          node.fy += (cy + ry - node.y) * 0.5;
+        }
+      });
+
       // Update positions
       nodes.forEach(node => {
         if (node === draggedNode) return;
@@ -114,8 +141,12 @@ export function GalaxyCanvas() {
       ctx.translate(width / 2 + camera.x, height / 2 + camera.y);
       ctx.scale(camera.zoom, camera.zoom);
 
-      // Background stars
+      // Background stars (slowly drifting)
+      time++;
       backgroundStars.forEach(star => {
+        const a = star.angle + time * star.speed;
+        star.x = Math.cos(a) * star.dist;
+        star.y = Math.sin(a) * star.dist;
         ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
