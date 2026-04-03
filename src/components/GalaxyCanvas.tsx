@@ -363,12 +363,10 @@ export function GalaxyCanvas() {
         ctx.stroke();
 
         // Pulse particle
-        const pulseGrad = ctx.createRadialGradient(px, py, 0, px, py, 25);
-        pulseGrad.addColorStop(0, flash.color.replace(')', `, ${alpha * 0.9})`).replace('rgb', 'rgba').replace('#', ''));
-        // Use simpler approach
         ctx.globalAlpha = alpha;
         ctx.fillStyle = flash.color;
         ctx.shadowBlur = 40;
+        ctx.shadowColor = flash.color;
         ctx.beginPath();
         ctx.arc(px, py, 5 * (1 - progress * 0.5), 0, Math.PI * 2);
         ctx.fill();
