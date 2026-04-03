@@ -1,5 +1,20 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import { useGalaxyStore, type GraphNode } from '@/stores/galaxyStore';
+
+interface DiscoveryFlash {
+  x1: number; y1: number; x2: number; y2: number;
+  birth: number; duration: number; color: string;
+}
+
+interface NebulaPatch {
+  cx: number; cy: number;
+  radius: number;
+  color: string;
+  targetOpacity: number;
+  opacity: number;
+  angle: number;
+  drift: number;
+}
 
 export function GalaxyCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -9,6 +24,10 @@ export function GalaxyCanvas() {
     height: 0,
     camera: { x: 0, y: 0, zoom: 1, targetX: 0 },
   });
+  const flashesRef = useRef<DiscoveryFlash[]>([]);
+  const nebulaeRef = useRef<NebulaPatch[]>([]);
+  const prevNodeCountRef = useRef(0);
+  const prevLinkCountRef = useRef(0);
 
   const nodes = useGalaxyStore(s => s.nodes);
   const links = useGalaxyStore(s => s.links);
@@ -23,6 +42,99 @@ export function GalaxyCanvas() {
       ? (window.innerWidth < 768 ? -168 : -200)
       : 0;
   }, [selectedNode]);
+
+  // Detect new nodes/links → trigger discovery flash & update nebulae
+  useEffect(() => {
+    const prevNodes = prevNodeCountRef.current;
+    const prevLinks = prevLinkCountRef.current;
+    prevNodeCountRef.current = nodes.length;
+    prevLinkCountRef.current = links.length;
+
+    // Discovery flash for new links
+    if (prevLinks > 0 && links.length > prevLinks) {
+      const newLinks = links.slice(prevLinks);
+      newLinks.forEach(link => {
+        const source = nodes.find(n => n.id === link.source);
+        const target = nodes.find(n => n.id === link.target);
+        if (source && target) {
+          const isDetailedCreation = target.type === 'detailed_keyword';
+          flashesRef.current.push({
+            x1: source.x, y1: source.y,
+            x2: target.x, y2: target.y,
+            birth: performance.now(),
+            duration: isDetailedCreation ? 2500 : 1500,
+            color: isDetailedCreation ? '#a78bfa' : '#60a5fa',
+          });
+        }
+      });
+    }
+
+    // Build nebula patches around keyword clusters
+    rebuildNebulae();
+  }, [nodes, links]);
+
+  const rebuildNebulae = () => {
+    const keywordNodes = nodes.filter(n => n.type === 'keyword' || n.type === 'detailed_keyword');
+    const newNebulae: NebulaPatch[] = [];
+
+    keywordNodes.forEach(kw => {
+      // Count connected captures
+      const connectedIds = new Set<string>();
+      links.forEach(l => {
+        if (l.source === kw.id) connectedIds.add(l.target);
+        if (l.target === kw.id) connectedIds.add(l.source);
+      });
+      const captureCount = nodes.filter(n => connectedIds.has(n.id) && n.type === 'capture').length;
+
+      if (captureCount >= 1) {
+        const intensity = Math.min(captureCount / 8, 1);
+        const baseRadius = 80 + captureCount * 25;
+        const color = kw.type === 'keyword'
+          ? `96, 165, 250`   // blue
+          : `167, 139, 250`; // purple
+
+        // Main nebula cloud
+        newNebulae.push({
+          cx: kw.x, cy: kw.y,
+          radius: baseRadius,
+          color,
+          targetOpacity: 0.015 + intensity * 0.04,
+          opacity: 0,
+          angle: Math.random() * Math.PI * 2,
+          drift: 0.0001 + Math.random() * 0.0002,
+        });
+
+        // Secondary wisps for density
+        if (captureCount >= 3) {
+          for (let i = 0; i < 2; i++) {
+            const offsetAngle = Math.random() * Math.PI * 2;
+            const offsetDist = baseRadius * 0.4;
+            newNebulae.push({
+              cx: kw.x + Math.cos(offsetAngle) * offsetDist,
+              cy: kw.y + Math.sin(offsetAngle) * offsetDist,
+              radius: baseRadius * 0.6,
+              color: i === 0 ? '252, 211, 77' : color,
+              targetOpacity: 0.01 + intensity * 0.02,
+              opacity: 0,
+              angle: Math.random() * Math.PI * 2,
+              drift: 0.00015 + Math.random() * 0.00015,
+            });
+          }
+        }
+      }
+    });
+
+    // Merge with existing for smooth transitions
+    const existing = nebulaeRef.current;
+    if (newNebulae.length > 0) {
+      newNebulae.forEach((n, i) => {
+        if (existing[i]) {
+          n.opacity = existing[i].opacity; // preserve fade progress
+        }
+      });
+    }
+    nebulaeRef.current = newNebulae;
+  };
 
   // Physics & Render loop
   useEffect(() => {
@@ -44,13 +156,12 @@ export function GalaxyCanvas() {
       const angle = Math.random() * Math.PI * 2;
       const dist = Math.random() * 1500;
       return {
-        angle,
-        dist,
+        angle, dist,
         x: Math.cos(angle) * dist,
         y: Math.sin(angle) * dist,
         size: Math.random() * 1.5,
         opacity: Math.random() * 0.5 + 0.1,
-        speed: (Math.random() * 0.00003 + 0.00001), // very slow orbital speed
+        speed: Math.random() * 0.00003 + 0.00001,
       };
     });
 
@@ -103,21 +214,19 @@ export function GalaxyCanvas() {
         centerNode.fy += (0 - centerNode.y) * 0.05;
       }
 
-      // Slow orbital rotation for center, keyword, detailed_keyword nodes
+      // Slow orbital rotation
       const orbitSpeed = 0.0003;
       nodes.forEach(node => {
         if (node === draggedNode) return;
         if (node.type === 'center' || node.type === 'keyword' || node.type === 'detailed_keyword') {
-          const cx = 0;
-          const cy = 0;
-          const dx = node.x - cx;
-          const dy = node.y - cy;
+          const dx = node.x;
+          const dy = node.y;
           const cosA = Math.cos(orbitSpeed);
           const sinA = Math.sin(orbitSpeed);
           const rx = dx * cosA - dy * sinA;
           const ry = dx * sinA + dy * cosA;
-          node.fx += (cx + rx - node.x) * 0.5;
-          node.fy += (cy + ry - node.y) * 0.5;
+          node.fx += (rx - node.x) * 0.5;
+          node.fy += (ry - node.y) * 0.5;
         }
       });
 
@@ -133,8 +242,10 @@ export function GalaxyCanvas() {
 
     const render = () => {
       const { camera, width, height } = graphRef.current;
+      const now = performance.now();
       camera.x += (camera.targetX - camera.x) * 0.08;
 
+      // Deep void background
       ctx.fillStyle = '#05050A';
       ctx.fillRect(0, 0, width, height);
       ctx.save();
@@ -153,17 +264,70 @@ export function GalaxyCanvas() {
         ctx.fill();
       });
 
-      // Aura glow (screen blend)
+      // ===== NEBULA CLOUDS (territory visualization) =====
       ctx.globalCompositeOperation = 'screen';
+
+      // Update nebula positions to follow their parent nodes
+      const kwNodes = nodes.filter(n => n.type === 'keyword' || n.type === 'detailed_keyword');
+      let nebulaIdx = 0;
+      kwNodes.forEach(kw => {
+        const connectedIds = new Set<string>();
+        links.forEach(l => {
+          if (l.source === kw.id) connectedIds.add(l.target);
+          if (l.target === kw.id) connectedIds.add(l.source);
+        });
+        const captureCount = nodes.filter(n => connectedIds.has(n.id) && n.type === 'capture').length;
+        if (captureCount < 1) return;
+
+        // Main nebula
+        if (nebulaeRef.current[nebulaIdx]) {
+          nebulaeRef.current[nebulaIdx].cx = kw.x;
+          nebulaeRef.current[nebulaIdx].cy = kw.y;
+          nebulaIdx++;
+        }
+        // Secondary wisps
+        if (captureCount >= 3) {
+          for (let i = 0; i < 2; i++) {
+            if (nebulaeRef.current[nebulaIdx]) {
+              const patch = nebulaeRef.current[nebulaIdx];
+              // Drift the wisp center slowly
+              const offsetAngle = patch.angle + time * patch.drift;
+              const offsetDist = nebulaeRef.current[nebulaIdx - (i + 1)]?.radius * 0.4 || 50;
+              patch.cx = kw.x + Math.cos(offsetAngle) * offsetDist;
+              patch.cy = kw.y + Math.sin(offsetAngle) * offsetDist;
+              nebulaIdx++;
+            }
+          }
+        }
+      });
+
+      // Render nebulae with fade-in
+      nebulaeRef.current.forEach(neb => {
+        neb.opacity += (neb.targetOpacity - neb.opacity) * 0.02; // slow fade-in
+        if (neb.opacity < 0.001) return;
+
+        const g = ctx.createRadialGradient(neb.cx, neb.cy, 0, neb.cx, neb.cy, neb.radius);
+        g.addColorStop(0, `rgba(${neb.color}, ${neb.opacity * 3})`);
+        g.addColorStop(0.3, `rgba(${neb.color}, ${neb.opacity * 1.5})`);
+        g.addColorStop(0.7, `rgba(${neb.color}, ${neb.opacity * 0.5})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(neb.cx, neb.cy, neb.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Per-node aura glow (individual star light)
       nodes.forEach(node => {
-        const auraSize = node.type === 'center' ? 150 : node.type === 'keyword' ? 100 : 50;
+        let auraSize = 50;
+        let color = 'rgba(255,255,255,0.08)';
+        if (node.type === 'center') { auraSize = 180; color = 'rgba(252, 211, 77, 0.06)'; }
+        else if (node.type === 'keyword') { auraSize = 120; color = 'rgba(96, 165, 250, 0.05)'; }
+        else if (node.type === 'detailed_keyword') { auraSize = 80; color = 'rgba(167, 139, 250, 0.05)'; }
+
         const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, auraSize);
-        let color = 'rgba(255,255,255,0)';
-        if (node.type === 'center') color = 'rgba(252, 211, 77, 0.05)';
-        if (node.type === 'keyword') color = 'rgba(96, 165, 250, 0.05)';
-        if (node.type === 'detailed_keyword') color = 'rgba(167, 139, 250, 0.05)';
-        if (node.type === 'capture') color = 'rgba(255, 255, 255, 0.08)';
-        gradient.addColorStop(0, color.replace(/0\.[0-9]+\)/, '0.15)'));
+        gradient.addColorStop(0, color.replace(/[\d.]+\)$/, '0.2)'));
+        gradient.addColorStop(0.5, color);
         gradient.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = gradient;
         ctx.beginPath();
@@ -172,7 +336,60 @@ export function GalaxyCanvas() {
       });
       ctx.globalCompositeOperation = 'source-over';
 
-      // Links
+      // ===== DISCOVERY FLASH ANIMATIONS =====
+      flashesRef.current = flashesRef.current.filter(f => now - f.birth < f.duration);
+      flashesRef.current.forEach(flash => {
+        const progress = (now - flash.birth) / flash.duration;
+        const fadeIn = Math.min(progress * 4, 1);
+        const fadeOut = progress > 0.6 ? 1 - (progress - 0.6) / 0.4 : 1;
+        const alpha = fadeIn * fadeOut;
+
+        // Travelling pulse along the link
+        const pulsePos = progress;
+        const px = flash.x1 + (flash.x2 - flash.x1) * pulsePos;
+        const py = flash.y1 + (flash.y2 - flash.y1) * pulsePos;
+
+        // Glowing connection line
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.strokeStyle = flash.color;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.shadowColor = flash.color;
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.moveTo(flash.x1, flash.y1);
+        ctx.lineTo(flash.x2, flash.y2);
+        ctx.stroke();
+
+        // Pulse particle
+        const pulseGrad = ctx.createRadialGradient(px, py, 0, px, py, 25);
+        pulseGrad.addColorStop(0, flash.color.replace(')', `, ${alpha * 0.9})`).replace('rgb', 'rgba').replace('#', ''));
+        // Use simpler approach
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = flash.color;
+        ctx.shadowBlur = 40;
+        ctx.beginPath();
+        ctx.arc(px, py, 5 * (1 - progress * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+
+        // Burst ring at destination when completing
+        if (progress > 0.7) {
+          const ringProgress = (progress - 0.7) / 0.3;
+          const ringRadius = 10 + ringProgress * 30;
+          ctx.globalAlpha = (1 - ringProgress) * alpha * 0.6;
+          ctx.strokeStyle = flash.color;
+          ctx.lineWidth = 1.5;
+          ctx.shadowBlur = 15;
+          ctx.beginPath();
+          ctx.arc(flash.x2, flash.y2, ringRadius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      });
+
+      // ===== LINKS =====
       links.forEach(link => {
         const source = nodes.find(n => n.id === link.source);
         const target = nodes.find(n => n.id === link.target);
@@ -180,15 +397,15 @@ export function GalaxyCanvas() {
         ctx.beginPath();
         ctx.moveTo(source.x, source.y);
         ctx.lineTo(target.x, target.y);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 0.8;
         ctx.stroke();
       });
 
       // Search highlight set
       const searchHighlightNodes = new Set(searchResults.map(r => r.id));
 
-      // Nodes
+      // ===== NODES =====
       nodes.forEach(node => {
         ctx.beginPath();
         let radius = 5;
