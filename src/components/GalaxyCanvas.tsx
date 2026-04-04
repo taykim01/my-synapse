@@ -160,18 +160,6 @@ export function GalaxyCanvas() {
     window.addEventListener('resize', resize);
     resize();
 
-    const backgroundStars = Array.from({ length: 200 }).map(() => {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * 1500;
-      return {
-        angle, dist,
-        x: Math.cos(angle) * dist,
-        y: Math.sin(angle) * dist,
-        size: Math.random() * 1.5,
-        opacity: Math.random() * 0.3 + 0.05,
-        speed: Math.random() * 0.00003 + 0.00001,
-      };
-    });
 
     let time = 0;
 
