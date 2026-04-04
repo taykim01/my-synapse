@@ -8,51 +8,61 @@ export function CaptureModal() {
   const setIsAddingCapture = useGalaxyStore(s => s.setIsAddingCapture);
 
   return (
-    <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#101018] border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+    <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 shadow-2xl">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-medium text-white">새로운 별 기록하기</h2>
-          <button onClick={() => setIsAddingCapture(false)} className="text-gray-400 hover:text-white">
+          <h2 className="text-xl font-display text-foreground">새로운 캡처 기록</h2>
+          <button onClick={() => setIsAddingCapture(false)} className="text-muted-foreground hover:text-foreground">
             <X size={20} />
           </button>
         </div>
 
         <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="제목을 입력하세요"
-            value={captureForm.title}
-            onChange={e => setCaptureForm({ ...captureForm, title: e.target.value })}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-          />
-          <textarea
-            placeholder="내용을 입력하여 새로운 영역을 개척하세요..."
-            value={captureForm.body}
-            onChange={e => setCaptureForm({ ...captureForm, body: e.target.value })}
-            rows={4}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none"
-          />
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">제목 (Title)</label>
+            <input
+              type="text"
+              placeholder="어떤 정보인가요?"
+              value={captureForm.title}
+              onChange={e => setCaptureForm({ ...captureForm, title: e.target.value })}
+              className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">내용 (Body)</label>
+            <textarea
+              placeholder="세부 내용을 기록하세요."
+              value={captureForm.body}
+              onChange={e => setCaptureForm({ ...captureForm, body: e.target.value })}
+              rows={4}
+              className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent resize-none transition-colors"
+            />
+          </div>
 
-          <div className="flex items-center gap-3 bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg">
-            <span className="text-blue-400 text-sm whitespace-nowrap">✨ AI 태그 제안:</span>
+          <div>
+            <div className="flex justify-between items-end mb-1">
+              <label className="text-xs text-muted-foreground">태그 (Tag)</label>
+              <span className="text-[10px] text-synapse-indigo bg-synapse-indigo/10 px-2 py-0.5 rounded">AI 제안 태그 (수정 가능)</span>
+            </div>
             <input
               type="text"
               value={captureForm.tag}
               onChange={e => setCaptureForm({ ...captureForm, tag: e.target.value })}
-              className="bg-transparent border-b border-blue-500/50 text-white text-sm focus:outline-none w-full pb-1"
+              className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
+              placeholder="태그 없이도 게시 가능"
             />
           </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => setIsAddingCapture(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white">
+          <button onClick={() => setIsAddingCapture(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
             취소
           </button>
           <button
             onClick={addCapture}
-            className="px-6 py-2 text-sm bg-white text-black rounded-lg font-medium hover:bg-gray-200 shadow-[0_0_10px_rgba(255,255,255,0.3)]"
+            className="px-6 py-2 text-sm bg-accent text-accent-foreground rounded-lg font-medium hover:bg-accent/90 transition-colors glow-accent"
           >
-            우주에 발사
+            네트워크에 추가
           </button>
         </div>
       </div>

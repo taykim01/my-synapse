@@ -51,18 +51,14 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        star: {
-          warm: "hsl(var(--star-warm))",
-          cool: "hsl(var(--star-cool))",
-          bright: "hsl(var(--star-bright))",
+        synapse: {
+          cyan: "hsl(var(--synapse-cyan))",
+          fuchsia: "hsl(var(--synapse-fuchsia))",
+          indigo: "hsl(var(--synapse-indigo))",
+          emerald: "hsl(var(--synapse-emerald))",
+          slate: "hsl(var(--synapse-slate))",
+          deep: "hsl(var(--synapse-deep))",
         },
-        nebula: {
-          purple: "hsl(var(--nebula-purple))",
-          blue: "hsl(var(--nebula-blue))",
-          teal: "hsl(var(--nebula-teal))",
-        },
-        void: "hsl(var(--void))",
-        constellation: "hsl(var(--constellation-line))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

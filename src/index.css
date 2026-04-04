@@ -6,62 +6,60 @@
 
 @layer base {
   :root {
-    --background: 230 25% 7%;
-    --foreground: 220 20% 90%;
+    --background: 222 47% 4%;
+    --foreground: 210 20% 90%;
 
-    --card: 230 20% 11%;
-    --card-foreground: 220 20% 90%;
+    --card: 222 40% 7%;
+    --card-foreground: 210 20% 90%;
 
-    --popover: 230 22% 9%;
-    --popover-foreground: 220 20% 90%;
+    --popover: 222 42% 6%;
+    --popover-foreground: 210 20% 90%;
 
-    --primary: 260 60% 65%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 187 80% 48%;
+    --primary-foreground: 222 47% 4%;
 
-    --secondary: 230 18% 16%;
-    --secondary-foreground: 220 15% 75%;
+    --secondary: 292 84% 61%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 230 15% 14%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 222 30% 12%;
+    --muted-foreground: 215 15% 50%;
 
-    --accent: 165 70% 45%;
+    --accent: 160 72% 40%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 230 15% 18%;
-    --input: 230 15% 18%;
-    --ring: 260 60% 65%;
+    --border: 222 20% 15%;
+    --input: 222 20% 15%;
+    --ring: 187 80% 48%;
 
     --radius: 0.75rem;
 
-    /* Galaxy custom tokens */
-    --star-warm: 40 85% 78%;
-    --star-cool: 165 70% 50%;
-    --star-bright: 240 70% 72%;
-    --nebula-purple: 270 60% 30%;
-    --nebula-blue: 220 70% 20%;
-    --nebula-teal: 180 50% 15%;
-    --void: 230 30% 4%;
-    --constellation-line: 220 30% 30%;
+    /* Synapse custom tokens */
+    --synapse-cyan: 187 80% 48%;
+    --synapse-fuchsia: 292 84% 61%;
+    --synapse-indigo: 239 84% 67%;
+    --synapse-emerald: 160 84% 39%;
+    --synapse-slate: 222 47% 11%;
+    --synapse-deep: 222 47% 3%;
 
-    --glow-primary: 0 0 20px hsl(260, 60%, 65%, 0.4);
-    --glow-accent: 0 0 20px hsl(165, 70%, 45%, 0.4);
-    --glow-warm: 0 0 20px hsl(40, 85%, 78%, 0.4);
-    --glow-intense: 0 0 40px hsl(260, 60%, 65%, 0.6), 0 0 80px hsl(260, 60%, 65%, 0.2);
+    --glow-primary: 0 0 20px hsl(187, 80%, 48%, 0.4);
+    --glow-secondary: 0 0 20px hsl(292, 84%, 61%, 0.4);
+    --glow-accent: 0 0 20px hsl(160, 84%, 39%, 0.4);
+    --glow-intense: 0 0 40px hsl(187, 80%, 48%, 0.6), 0 0 80px hsl(187, 80%, 48%, 0.2);
 
     --font-display: 'Space Grotesk', sans-serif;
     --font-body: 'IBM Plex Sans', sans-serif;
 
-    --sidebar-background: 230 25% 7%;
-    --sidebar-foreground: 220 20% 90%;
-    --sidebar-primary: 260 60% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 230 18% 16%;
-    --sidebar-accent-foreground: 220 15% 75%;
-    --sidebar-border: 230 15% 18%;
-    --sidebar-ring: 260 60% 65%;
+    --sidebar-background: 222 47% 4%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 187 80% 48%;
+    --sidebar-primary-foreground: 222 47% 4%;
+    --sidebar-accent: 222 30% 12%;
+    --sidebar-accent-foreground: 215 15% 75%;
+    --sidebar-border: 222 20% 15%;
+    --sidebar-ring: 187 80% 48%;
   }
 }
 
@@ -92,27 +90,27 @@
   .glow-primary {
     box-shadow: var(--glow-primary);
   }
+  .glow-secondary {
+    box-shadow: var(--glow-secondary);
+  }
   .glow-accent {
     box-shadow: var(--glow-accent);
-  }
-  .glow-warm {
-    box-shadow: var(--glow-warm);
   }
   .glow-intense {
     box-shadow: var(--glow-intense);
   }
 
-  .text-gradient-nebula {
+  .text-gradient-synapse {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
   }
 
-  .bg-void {
-    background: radial-gradient(ellipse at center, hsl(var(--background)) 0%, hsl(var(--void)) 100%);
+  .bg-deep {
+    background: radial-gradient(ellipse at center, hsl(var(--background)) 0%, hsl(var(--synapse-deep)) 100%);
   }
 }
 
-/* Starfield animation */
+/* Synapse animations */
 @keyframes twinkle {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }

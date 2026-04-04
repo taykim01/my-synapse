@@ -17,6 +17,14 @@ interface NebulaPatch {
   drift: number;
 }
 
+// Synapse color palette
+const NODE_COLORS = {
+  center:           { core: '#06b6d4', glow: 'rgba(6, 182, 212, 0.4)' },
+  keyword:          { core: '#d946ef', glow: 'rgba(217, 70, 239, 0.4)' },
+  detailed_keyword: { core: '#6366f1', glow: 'rgba(99, 102, 241, 0.4)' },
+  capture:          { core: '#10b981', glow: 'rgba(16, 185, 129, 0.4)' },
+} as const;
+
 export function GalaxyCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const graphRef = useRef({
@@ -46,12 +54,10 @@ export function GalaxyCanvas() {
 
   // Detect new nodes/links → trigger discovery flash & update nebulae
   useEffect(() => {
-    const prevNodes = prevNodeCountRef.current;
     const prevLinks = prevLinkCountRef.current;
     prevNodeCountRef.current = nodes.length;
     prevLinkCountRef.current = links.length;
 
-    // Discovery flash for new links
     if (prevLinks > 0 && links.length > prevLinks) {
       const newLinks = links.slice(prevLinks);
       newLinks.forEach(link => {
@@ -59,11 +65,12 @@ export function GalaxyCanvas() {
         if (target) {
           const isDetailed = target.type === 'detailed_keyword';
           const particleCount = isDetailed ? 24 : 16;
+          const colors = NODE_COLORS[target.type as keyof typeof NODE_COLORS] || NODE_COLORS.capture;
           birthsRef.current.push({
             x: target.x, y: target.y,
             birth: performance.now(),
             duration: isDetailed ? 2000 : 1200,
-            color: isDetailed ? '#a78bfa' : target.type === 'capture' ? '#ffffff' : '#60a5fa',
+            color: colors.core,
             particles: Array.from({ length: particleCount }, () => ({
               angle: Math.random() * Math.PI * 2,
               speed: 20 + Math.random() * 60,
@@ -74,7 +81,6 @@ export function GalaxyCanvas() {
       });
     }
 
-    // Build nebula patches around keyword clusters
     rebuildNebulae();
   }, [nodes, links]);
 
@@ -83,7 +89,6 @@ export function GalaxyCanvas() {
     const newNebulae: NebulaPatch[] = [];
 
     keywordNodes.forEach(kw => {
-      // Count connected captures
       const connectedIds = new Set<string>();
       links.forEach(l => {
         if (l.source === kw.id) connectedIds.add(l.target);
@@ -94,11 +99,11 @@ export function GalaxyCanvas() {
       if (captureCount >= 1) {
         const intensity = Math.min(captureCount / 8, 1);
         const baseRadius = 80 + captureCount * 25;
+        // Fuchsia for keywords, Indigo for detailed
         const color = kw.type === 'keyword'
-          ? `96, 165, 250`   // blue
-          : `167, 139, 250`; // purple
+          ? '217, 70, 239'
+          : '99, 102, 241';
 
-        // Main nebula cloud
         newNebulae.push({
           cx: kw.x, cy: kw.y,
           radius: baseRadius,
@@ -109,7 +114,6 @@ export function GalaxyCanvas() {
           drift: 0.0001 + Math.random() * 0.0002,
         });
 
-        // Secondary wisps for density
         if (captureCount >= 3) {
           for (let i = 0; i < 2; i++) {
             const offsetAngle = Math.random() * Math.PI * 2;
@@ -118,7 +122,7 @@ export function GalaxyCanvas() {
               cx: kw.x + Math.cos(offsetAngle) * offsetDist,
               cy: kw.y + Math.sin(offsetAngle) * offsetDist,
               radius: baseRadius * 0.6,
-              color: i === 0 ? '252, 211, 77' : color,
+              color: i === 0 ? '6, 182, 212' : color,
               targetOpacity: 0.01 + intensity * 0.02,
               opacity: 0,
               angle: Math.random() * Math.PI * 2,
@@ -129,12 +133,11 @@ export function GalaxyCanvas() {
       }
     });
 
-    // Merge with existing for smooth transitions
     const existing = nebulaeRef.current;
     if (newNebulae.length > 0) {
       newNebulae.forEach((n, i) => {
         if (existing[i]) {
-          n.opacity = existing[i].opacity; // preserve fade progress
+          n.opacity = existing[i].opacity;
         }
       });
     }
@@ -165,7 +168,7 @@ export function GalaxyCanvas() {
         x: Math.cos(angle) * dist,
         y: Math.sin(angle) * dist,
         size: Math.random() * 1.5,
-        opacity: Math.random() * 0.5 + 0.1,
+        opacity: Math.random() * 0.3 + 0.05,
         speed: Math.random() * 0.00003 + 0.00001,
       };
     });
@@ -250,29 +253,28 @@ export function GalaxyCanvas() {
       const now = performance.now();
       camera.x += (camera.targetX - camera.x) * 0.08;
 
-      // Deep void background
-      ctx.fillStyle = '#05050A';
+      // Deep background with motion blur
+      ctx.fillStyle = 'rgba(5, 5, 10, 0.6)';
       ctx.fillRect(0, 0, width, height);
       ctx.save();
       ctx.translate(width / 2 + camera.x, height / 2 + camera.y);
       ctx.scale(camera.zoom, camera.zoom);
 
-      // Background stars (slowly drifting)
+      // Background particles
       time++;
       backgroundStars.forEach(star => {
         const a = star.angle + time * star.speed;
         star.x = Math.cos(a) * star.dist;
         star.y = Math.sin(a) * star.dist;
-        ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+        ctx.fillStyle = `rgba(100, 116, 139, ${star.opacity})`;
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
         ctx.fill();
       });
 
-      // ===== NEBULA CLOUDS (territory visualization) =====
+      // ===== NEBULA CLOUDS =====
       ctx.globalCompositeOperation = 'screen';
 
-      // Update nebula positions to follow their parent nodes
       const kwNodes = nodes.filter(n => n.type === 'keyword' || n.type === 'detailed_keyword');
       let nebulaIdx = 0;
       kwNodes.forEach(kw => {
@@ -284,18 +286,15 @@ export function GalaxyCanvas() {
         const captureCount = nodes.filter(n => connectedIds.has(n.id) && n.type === 'capture').length;
         if (captureCount < 1) return;
 
-        // Main nebula
         if (nebulaeRef.current[nebulaIdx]) {
           nebulaeRef.current[nebulaIdx].cx = kw.x;
           nebulaeRef.current[nebulaIdx].cy = kw.y;
           nebulaIdx++;
         }
-        // Secondary wisps
         if (captureCount >= 3) {
           for (let i = 0; i < 2; i++) {
             if (nebulaeRef.current[nebulaIdx]) {
               const patch = nebulaeRef.current[nebulaIdx];
-              // Drift the wisp center slowly
               const offsetAngle = patch.angle + time * patch.drift;
               const offsetDist = nebulaeRef.current[nebulaIdx - (i + 1)]?.radius * 0.4 || 50;
               patch.cx = kw.x + Math.cos(offsetAngle) * offsetDist;
@@ -306,9 +305,8 @@ export function GalaxyCanvas() {
         }
       });
 
-      // Render nebulae with fade-in
       nebulaeRef.current.forEach(neb => {
-        neb.opacity += (neb.targetOpacity - neb.opacity) * 0.02; // slow fade-in
+        neb.opacity += (neb.targetOpacity - neb.opacity) * 0.02;
         if (neb.opacity < 0.001) return;
 
         const g = ctx.createRadialGradient(neb.cx, neb.cy, 0, neb.cx, neb.cy, neb.radius);
@@ -322,13 +320,13 @@ export function GalaxyCanvas() {
         ctx.fill();
       });
 
-      // Per-node aura glow (individual star light)
+      // Per-node aura glow
       nodes.forEach(node => {
         let auraSize = 50;
-        let color = 'rgba(255,255,255,0.08)';
-        if (node.type === 'center') { auraSize = 180; color = 'rgba(252, 211, 77, 0.06)'; }
-        else if (node.type === 'keyword') { auraSize = 120; color = 'rgba(96, 165, 250, 0.05)'; }
-        else if (node.type === 'detailed_keyword') { auraSize = 80; color = 'rgba(167, 139, 250, 0.05)'; }
+        let color = 'rgba(16, 185, 129, 0.08)';
+        if (node.type === 'center') { auraSize = 180; color = 'rgba(6, 182, 212, 0.06)'; }
+        else if (node.type === 'keyword') { auraSize = 120; color = 'rgba(217, 70, 239, 0.05)'; }
+        else if (node.type === 'detailed_keyword') { auraSize = 80; color = 'rgba(99, 102, 241, 0.05)'; }
 
         const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, auraSize);
         gradient.addColorStop(0, color.replace(/[\d.]+\)$/, '0.2)'));
@@ -349,7 +347,6 @@ export function GalaxyCanvas() {
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
 
-        // 1) Initial bright flash (first 30%)
         if (progress < 0.3) {
           const flashAlpha = (1 - progress / 0.3);
           const flashRadius = 8 + progress * 80;
@@ -364,7 +361,6 @@ export function GalaxyCanvas() {
           ctx.fill();
         }
 
-        // 2) Expanding shockwave rings
         const ringCount = 2;
         for (let r = 0; r < ringCount; r++) {
           const ringDelay = r * 0.15;
@@ -383,7 +379,6 @@ export function GalaxyCanvas() {
           ctx.stroke();
         }
 
-        // 3) Particle debris flying outward
         const particleFade = progress < 0.2 ? progress / 0.2 : Math.max(0, 1 - (progress - 0.2) / 0.8);
         birth.particles.forEach(p => {
           const dist = p.speed * progress;
@@ -400,7 +395,6 @@ export function GalaxyCanvas() {
           ctx.fill();
         });
 
-        // 4) Lingering core glow
         if (progress < 0.6) {
           const coreAlpha = (1 - progress / 0.6) * 0.8;
           ctx.globalAlpha = coreAlpha;
@@ -415,35 +409,35 @@ export function GalaxyCanvas() {
         ctx.restore();
       });
 
-      // ===== LEVEL OF DETAIL (zoom-based visibility) =====
+      // ===== LEVEL OF DETAIL =====
       const zoom = camera.zoom;
-      // At low zoom, hide lower-level nodes to prevent overlap
-      // captures visible above 0.6, detailed_keywords visible above 0.35
-      const showCaptures = zoom > 0.6;
-      const showDetailed = zoom > 0.35;
-      // Smooth fade transitions
-      const captureAlpha = showCaptures ? Math.min(1, (zoom - 0.6) / 0.15) : 0;
-      const detailedAlpha = showDetailed ? Math.min(1, (zoom - 0.35) / 0.1) : 0;
+      const showCaptures = zoom > 0.55;
+      const showDetailed = zoom > 0.25;
+      const captureAlpha = showCaptures ? Math.min(1, (zoom - 0.55) / 0.15) : 0;
+      const detailedAlpha = showDetailed ? Math.min(1, (zoom - 0.25) / 0.1) : 0;
 
-      // ===== LINKS =====
+      // ===== LINKS (organic curved synapses) =====
       links.forEach(link => {
         const source = nodes.find(n => n.id === link.source);
         const target = nodes.find(n => n.id === link.target);
         if (!source || !target) return;
 
-        // Hide links to hidden nodes
         if (target.type === 'capture' && !showCaptures) return;
         if (target.type === 'detailed_keyword' && !showDetailed) return;
 
-        let linkAlpha = 0.15;
+        let linkAlpha = 0.25;
         if (target.type === 'capture') linkAlpha *= captureAlpha;
         else if (target.type === 'detailed_keyword') linkAlpha *= detailedAlpha;
 
         ctx.beginPath();
         ctx.moveTo(source.x, source.y);
-        ctx.lineTo(target.x, target.y);
-        ctx.strokeStyle = `rgba(255, 255, 255, ${linkAlpha})`;
-        ctx.lineWidth = 0.8;
+        // Curved synapse line
+        const mx = (source.x + target.x) / 2;
+        const my = (source.y + target.y) / 2;
+        const offset = 15;
+        ctx.quadraticCurveTo(mx + offset, my + offset, target.x, target.y);
+        ctx.strokeStyle = `rgba(100, 116, 139, ${linkAlpha})`;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
       });
 
@@ -452,32 +446,32 @@ export function GalaxyCanvas() {
 
       // ===== NODES =====
       nodes.forEach(node => {
-        // Skip hidden nodes based on LOD
         if (node.type === 'capture' && !showCaptures && !(searchQuery && searchHighlightNodes.has(node.id))) return;
         if (node.type === 'detailed_keyword' && !showDetailed) return;
 
-        ctx.beginPath();
-        let radius = 5;
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowBlur = 15;
+        const colors = NODE_COLORS[node.type as keyof typeof NODE_COLORS] || NODE_COLORS.capture;
 
-        if (node.type === 'center') {
-          radius = 12;
-          ctx.fillStyle = '#fcd34d';
-          ctx.shadowColor = '#f59e0b';
-        } else if (node.type === 'keyword') {
-          radius = 8;
-          ctx.fillStyle = '#60a5fa';
-          ctx.shadowColor = '#3b82f6';
-        } else if (node.type === 'detailed_keyword') {
-          radius = 6;
-          ctx.fillStyle = '#a78bfa';
-          ctx.shadowColor = '#8b5cf6';
-        } else {
-          radius = 4;
-          ctx.fillStyle = '#ffffff';
-          ctx.shadowColor = '#ffffff';
-        }
+        // Glow
+        let radius = 5;
+        if (node.type === 'center') radius = 12;
+        else if (node.type === 'keyword') radius = 8;
+        else if (node.type === 'detailed_keyword') radius = 6;
+        else radius = 4;
+
+        const glowGradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, radius * 2.5);
+        glowGradient.addColorStop(0, colors.glow);
+        glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = glowGradient;
+        ctx.fill();
+
+        // Core
+        ctx.beginPath();
+        ctx.fillStyle = colors.core;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = colors.core;
 
         // Apply LOD fade
         let nodeAlpha = 1;
@@ -488,7 +482,7 @@ export function GalaxyCanvas() {
           radius *= 2;
           ctx.shadowBlur = 30;
           ctx.shadowColor = '#10b981';
-          nodeAlpha = 1; // always fully visible if search-matched
+          nodeAlpha = 1;
         } else if (searchQuery) {
           nodeAlpha *= 0.2;
         }
@@ -496,12 +490,20 @@ export function GalaxyCanvas() {
         ctx.globalAlpha = nodeAlpha;
         ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
         ctx.fill();
+
+        // Center node white ring
+        if (node.type === 'center') {
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
         ctx.shadowBlur = 0;
         ctx.globalAlpha = 1.0;
 
         // Labels
         if (node.type !== 'capture' || (searchQuery && searchHighlightNodes.has(node.id))) {
-          if (nodeAlpha > 0.3) {
+          if (nodeAlpha > 0.3 && zoom > 0.4) {
             ctx.globalAlpha = nodeAlpha;
             ctx.font = node.type === 'center' ? 'bold 14px sans-serif' : '11px sans-serif';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
@@ -537,8 +539,6 @@ export function GalaxyCanvas() {
     let startX = 0;
     let startY = 0;
     let isMoved = false;
-
-    // Pinch zoom state
     let lastPinchDist = 0;
     let isPinching = false;
 
@@ -564,7 +564,6 @@ export function GalaxyCanvas() {
       return Math.sqrt(dx * dx + dy * dy);
     };
 
-    // --- Mouse events ---
     const handleMouseDown = (e: MouseEvent) => {
       const { x, y } = getMousePos(e);
       startX = e.clientX;
@@ -619,7 +618,6 @@ export function GalaxyCanvas() {
       cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * zoomFactor));
     };
 
-    // --- Touch events ---
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         e.preventDefault();
