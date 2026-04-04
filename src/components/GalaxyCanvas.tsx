@@ -160,18 +160,6 @@ export function GalaxyCanvas() {
     window.addEventListener('resize', resize);
     resize();
 
-    const backgroundStars = Array.from({ length: 200 }).map(() => {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * 1500;
-      return {
-        angle, dist,
-        x: Math.cos(angle) * dist,
-        y: Math.sin(angle) * dist,
-        size: Math.random() * 1.5,
-        opacity: Math.random() * 0.3 + 0.05,
-        speed: Math.random() * 0.00003 + 0.00001,
-      };
-    });
 
     let time = 0;
 
@@ -260,17 +248,7 @@ export function GalaxyCanvas() {
       ctx.translate(width / 2 + camera.x, height / 2 + camera.y);
       ctx.scale(camera.zoom, camera.zoom);
 
-      // Background particles
       time++;
-      backgroundStars.forEach(star => {
-        const a = star.angle + time * star.speed;
-        star.x = Math.cos(a) * star.dist;
-        star.y = Math.sin(a) * star.dist;
-        ctx.fillStyle = `rgba(100, 116, 139, ${star.opacity})`;
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
 
       // ===== NEBULA CLOUDS =====
       ctx.globalCompositeOperation = 'screen';
