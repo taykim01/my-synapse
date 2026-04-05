@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGalaxyStore } from '@/stores/galaxyStore';
 import { supabase } from '@/integrations/supabase/client';
-import { X, ChevronDown, Type, Link, FileText, Image, Upload, Loader2 } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { X, ChevronDown, Type, Link, FileText, Image, Upload, Loader2, Sparkles } from 'lucide-react';
 
 const CONTENT_TYPES = [
   { value: 'TEXT', label: '텍스트', icon: Type },
@@ -33,6 +34,7 @@ export function CaptureModal() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fetchingMeta, setFetchingMeta] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -325,16 +327,40 @@ export function CaptureModal() {
           )}
         </div>
 
+        {saving && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-accent animate-pulse">
+            <Sparkles size={16} className="animate-spin" />
+            AI가 관련 키워드를 찾고 있습니다...
+          </div>
+        )}
+
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => setIsAddingCapture(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
+          <button onClick={() => setIsAddingCapture(false)} disabled={saving} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40">
             취소
           </button>
           <button
-            onClick={addCapture}
-            disabled={(isText && !captureForm.title.trim()) || (!isText && !captureForm.content_url.trim())}
-            className="px-6 py-2 text-sm bg-accent text-accent-foreground rounded-lg font-medium hover:bg-accent/90 transition-colors glow-accent disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={async () => {
+              setSaving(true);
+              try {
+                const result = await addCapture();
+                if (result?.keyword_title) {
+                  toast({ title: '캡처 완료', description: `"${result.keyword_title}" 키워드에 연결되었습니다.` });
+                }
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving || (isText && !captureForm.title.trim()) || (!isText && !captureForm.content_url.trim())}
+            className="px-6 py-2 text-sm bg-accent text-accent-foreground rounded-lg font-medium hover:bg-accent/90 transition-colors glow-accent disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            캡처 추가
+            {saving ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                분석 중...
+              </>
+            ) : (
+              '캡처 추가'
+            )}
           </button>
         </div>
       </div>
