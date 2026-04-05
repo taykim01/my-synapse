@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGalaxyStore } from '@/stores/galaxyStore';
 import { supabase } from '@/integrations/supabase/client';
 import { X, ChevronDown, Type, Link, FileText, Image, Upload, Loader2 } from 'lucide-react';
@@ -19,6 +19,12 @@ function extractDomain(url: string): string {
   }
 }
 
+interface LinkPreview {
+  title: string;
+  thumbnail: string;
+  description: string;
+}
+
 export function CaptureModal() {
   const captureForm = useGalaxyStore(s => s.captureForm);
   const setCaptureForm = useGalaxyStore(s => s.setCaptureForm);
@@ -26,7 +32,10 @@ export function CaptureModal() {
   const setIsAddingCapture = useGalaxyStore(s => s.setIsAddingCapture);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [fetchingMeta, setFetchingMeta] = useState(false);
+  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const contentType = captureForm.content_type;
   const isText = contentType === 'TEXT';
@@ -36,9 +45,51 @@ export function CaptureModal() {
   const selectedType = CONTENT_TYPES.find(ct => ct.value === contentType) || CONTENT_TYPES[0];
   const SelectedIcon = selectedType.icon;
 
+  const fetchMetadata = useCallback(async (url: string) => {
+    if (!url) return;
+    try {
+      new URL(url);
+    } catch {
+      return;
+    }
+
+    setFetchingMeta(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-url-metadata', {
+        body: { url },
+      });
+      if (!error && data) {
+        setLinkPreview({
+          title: data.title || '',
+          thumbnail: data.thumbnail || '',
+          description: data.description || '',
+        });
+        if (data.title) {
+          setCaptureForm({ title: data.title });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch metadata:', e);
+    } finally {
+      setFetchingMeta(false);
+    }
+  }, [setCaptureForm]);
+
   const handleLinkChange = (url: string) => {
     setCaptureForm({ content_url: url, source: extractDomain(url) });
+    setLinkPreview(null);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchMetadata(url);
+    }, 800);
   };
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -106,6 +157,7 @@ export function CaptureModal() {
                       key={ct.value}
                       onClick={() => {
                         setCaptureForm({ content_type: ct.value, content_url: '', source: '' });
+                        setLinkPreview(null);
                         setDropdownOpen(false);
                       }}
                       className={`w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-accent/10 transition-colors ${
@@ -118,35 +170,6 @@ export function CaptureModal() {
                   );
                 })}
               </div>
-            )}
-          </div>
-
-          {/* Title */}
-          <div>
-            <div className="flex justify-between items-end mb-1">
-              <label className="text-xs text-muted-foreground">제목</label>
-              {!isText && (
-                <span className="text-[10px] text-synapse-indigo bg-synapse-indigo/10 px-2 py-0.5 rounded">
-                  AI 자동 생성 · 수정 가능
-                </span>
-              )}
-            </div>
-            {isText ? (
-              <input
-                type="text"
-                placeholder="어떤 정보인가요?"
-                value={captureForm.title}
-                onChange={e => setCaptureForm({ title: e.target.value })}
-                className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
-              />
-            ) : (
-              <input
-                type="text"
-                placeholder="캡처 후 AI가 자동으로 제목을 생성합니다"
-                value={captureForm.title}
-                onChange={e => setCaptureForm({ title: e.target.value })}
-                className="w-full bg-synapse-deep/50 border border-border/50 rounded-lg px-4 py-3 text-foreground/70 placeholder-muted-foreground/60 focus:outline-none focus:border-accent transition-colors italic"
-              />
             )}
           </div>
 
@@ -164,8 +187,63 @@ export function CaptureModal() {
               {captureForm.source && (
                 <p className="text-xs text-accent mt-1">출처: {captureForm.source}</p>
               )}
+
+              {/* Link Preview */}
+              {fetchingMeta && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 size={14} className="animate-spin" />
+                  메타데이터 가져오는 중...
+                </div>
+              )}
+              {!fetchingMeta && linkPreview?.thumbnail && (
+                <div className="mt-3 rounded-lg border border-border overflow-hidden bg-synapse-deep">
+                  <img
+                    src={linkPreview.thumbnail}
+                    alt="Link preview"
+                    className="w-full h-36 object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                  {linkPreview.description && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground line-clamp-2">{linkPreview.description}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
+
+          {/* Title */}
+          <div>
+            <div className="flex justify-between items-end mb-1">
+              <label className="text-xs text-muted-foreground">제목</label>
+              {!isText && (
+                <span className="text-[10px] text-synapse-indigo bg-synapse-indigo/10 px-2 py-0.5 rounded">
+                  {isLink ? '링크에서 자동 추출' : 'AI 자동 생성'} · 수정 가능
+                </span>
+              )}
+            </div>
+            {isText ? (
+              <input
+                type="text"
+                placeholder="어떤 정보인가요?"
+                value={captureForm.title}
+                onChange={e => setCaptureForm({ title: e.target.value })}
+                className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
+              />
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder={isLink ? 'URL 입력 시 자동으로 제목을 가져옵니다' : '캡처 후 AI가 자동으로 제목을 생성합니다'}
+                  value={captureForm.title}
+                  onChange={e => setCaptureForm({ title: e.target.value })}
+                  className="w-full bg-synapse-deep/50 border border-border/50 rounded-lg px-4 py-3 text-foreground/70 placeholder-muted-foreground/60 focus:outline-none focus:border-accent transition-colors italic"
+                />
+                {fetchingMeta && (
+                  <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground" />
+                )}
+              </div>
+            )}
+          </div>
 
           {/* File/Image upload */}
           {isFileOrImage && (
