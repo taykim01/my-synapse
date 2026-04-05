@@ -16,67 +16,40 @@ export type Database = {
     Tables: {
       captures: {
         Row: {
-          body: string | null
+          connected_to: string | null
           content_type: string
+          content_url: string | null
           created_at: string
           creator_id: string
+          description: string | null
           embedding: string | null
           id: string
-          image_url: string | null
-          link: string | null
           source: string | null
           title: string
-          x: number
-          y: number
         }
         Insert: {
-          body?: string | null
+          connected_to?: string | null
           content_type: string
+          content_url?: string | null
           created_at?: string
           creator_id: string
+          description?: string | null
           embedding?: string | null
           id?: string
-          image_url?: string | null
-          link?: string | null
           source?: string | null
           title?: string
-          x?: number
-          y?: number
         }
         Update: {
-          body?: string | null
+          connected_to?: string | null
           content_type?: string
+          content_url?: string | null
           created_at?: string
           creator_id?: string
+          description?: string | null
           embedding?: string | null
           id?: string
-          image_url?: string | null
-          link?: string | null
           source?: string | null
           title?: string
-          x?: number
-          y?: number
-        }
-        Relationships: []
-      }
-      connections: {
-        Row: {
-          creator_id: string
-          from_id: string
-          id: string
-          to_id: string
-        }
-        Insert: {
-          creator_id: string
-          from_id: string
-          id?: string
-          to_id: string
-        }
-        Update: {
-          creator_id?: string
-          from_id?: string
-          id?: string
-          to_id?: string
         }
         Relationships: []
       }
@@ -84,26 +57,44 @@ export type Database = {
         Row: {
           created_at: string
           creator_id: string
-          embedding: string | null
-          hierarchy: number
           id: string
           title: string
         }
         Insert: {
           created_at?: string
           creator_id: string
-          embedding?: string | null
-          hierarchy?: number
           id?: string
           title: string
         }
         Update: {
           created_at?: string
           creator_id?: string
-          embedding?: string | null
-          hierarchy?: number
           id?: string
           title?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          user_id?: string
+          username?: string | null
         }
         Relationships: []
       }
@@ -129,18 +120,16 @@ export type Database = {
       search_captures: {
         Args: { query_text: string; user_id: string }
         Returns: {
-          body: string | null
+          connected_to: string | null
           content_type: string
+          content_url: string | null
           created_at: string
           creator_id: string
+          description: string | null
           embedding: string | null
           id: string
-          image_url: string | null
-          link: string | null
           source: string | null
           title: string
-          x: number
-          y: number
         }[]
         SetofOptions: {
           from: "*"
