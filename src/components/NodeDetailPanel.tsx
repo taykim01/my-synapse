@@ -1,7 +1,8 @@
 import { useGalaxyStore } from '@/stores/galaxyStore';
-import { X, ExternalLink } from 'lucide-react';
+import { X, ExternalLink, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 interface LinkMeta {
   title: string;
