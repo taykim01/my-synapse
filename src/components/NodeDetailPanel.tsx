@@ -85,8 +85,23 @@ export function NodeDetailPanel() {
   const activeNode = useGalaxyStore(s => s.activeNode);
   const setSelectedNode = useGalaxyStore(s => s.setSelectedNode);
   const getConnectedCaptures = useGalaxyStore(s => s.getConnectedCaptures);
+  const deleteCapture = useGalaxyStore(s => s.deleteCapture);
+  const [deleting, setDeleting] = useState(false);
 
   const displayNode = activeNode;
+
+  const handleDelete = async () => {
+    if (!displayNode?.dbId) return;
+    if (!confirm('이 캡처를 삭제하시겠습니까?')) return;
+    setDeleting(true);
+    const ok = await deleteCapture(displayNode.dbId);
+    setDeleting(false);
+    if (ok) {
+      toast({ title: '캡처가 삭제되었습니다.' });
+    } else {
+      toast({ title: '삭제에 실패했습니다.', variant: 'destructive' });
+    }
+  };
 
   return (
     <div
