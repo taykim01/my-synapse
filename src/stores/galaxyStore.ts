@@ -84,7 +84,10 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
   addCapture: () => {
     const state = get();
     const { captureForm, nodes, links } = state;
-    if (!captureForm.title.trim()) return;
+    const isText = captureForm.content_type === 'TEXT';
+    if (isText && !captureForm.title.trim()) return;
+    if (!isText && !captureForm.content_url.trim()) return;
+    const title = captureForm.title.trim() || `${captureForm.content_type} 캡처 — ${new Date().toLocaleDateString('ko-KR')}`;
 
     const assignedTag = captureForm.tag || `AI_Tag_${Math.floor(Math.random() * 100)}`;
     const keywordNodes = nodes.filter(n => n.type === 'keyword');
