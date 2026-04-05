@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         const { data: matchData, error: matchError } = await adminClient.rpc("match_captures", {
           query_embedding: embeddingStr,
           user_id: user.id,
-          match_threshold: 0.3,
+          match_threshold: 0.0,
           match_count: 10,
         });
         if (matchError) {
