@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useGalaxyStore } from '@/stores/galaxyStore';
-import { X, ChevronDown, Type, Link, FileText, Image } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { X, ChevronDown, Type, Link, FileText, Image, Upload, Loader2 } from 'lucide-react';
 
 const CONTENT_TYPES = [
   { value: 'TEXT', label: '텍스트', icon: Type },
@@ -9,16 +10,68 @@ const CONTENT_TYPES = [
   { value: 'IMAGE', label: '이미지', icon: Image },
 ] as const;
 
+function extractDomain(url: string): string {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 export function CaptureModal() {
   const captureForm = useGalaxyStore(s => s.captureForm);
   const setCaptureForm = useGalaxyStore(s => s.setCaptureForm);
   const addCapture = useGalaxyStore(s => s.addCapture);
   const setIsAddingCapture = useGalaxyStore(s => s.setIsAddingCapture);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isText = captureForm.content_type === 'TEXT';
-  const selectedType = CONTENT_TYPES.find(ct => ct.value === captureForm.content_type) || CONTENT_TYPES[0];
+  const contentType = captureForm.content_type;
+  const isText = contentType === 'TEXT';
+  const isLink = contentType === 'LINK';
+  const isFileOrImage = contentType === 'FILE' || contentType === 'IMAGE';
+
+  const selectedType = CONTENT_TYPES.find(ct => ct.value === contentType) || CONTENT_TYPES[0];
   const SelectedIcon = selectedType.icon;
+
+  const handleLinkChange = (url: string) => {
+    setCaptureForm({ content_url: url, source: extractDomain(url) });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const ext = file.name.split('.').pop();
+      const filePath = `${user.id}/${Date.now()}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from('capture-files')
+        .upload(filePath, file);
+
+      if (error) {
+        console.error('Upload failed:', error);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('capture-files')
+        .getPublicUrl(filePath);
+
+      setCaptureForm({ content_url: urlData.publicUrl });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const acceptTypes = contentType === 'IMAGE' ? 'image/*' : '*/*';
 
   return (
     <div className="absolute inset-0 z-50 bg-background/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -52,11 +105,11 @@ export function CaptureModal() {
                     <button
                       key={ct.value}
                       onClick={() => {
-                        setCaptureForm({ content_type: ct.value });
+                        setCaptureForm({ content_type: ct.value, content_url: '', source: '' });
                         setDropdownOpen(false);
                       }}
                       className={`w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-accent/10 transition-colors ${
-                        captureForm.content_type === ct.value ? 'text-accent bg-accent/5' : 'text-foreground'
+                        contentType === ct.value ? 'text-accent bg-accent/5' : 'text-foreground'
                       }`}
                     >
                       <Icon size={16} />
@@ -68,7 +121,7 @@ export function CaptureModal() {
             )}
           </div>
 
-          {/* Title — editable for TEXT, AI placeholder for others */}
+          {/* Title */}
           <div>
             <div className="flex justify-between items-end mb-1">
               <label className="text-xs text-muted-foreground">제목</label>
@@ -97,19 +150,73 @@ export function CaptureModal() {
             )}
           </div>
 
-          {/* Content URL / File input (for non-TEXT) */}
-          {!isText && (
+          {/* Link URL input */}
+          {isLink && (
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">
-                {captureForm.content_type === 'LINK' ? 'URL' : captureForm.content_type === 'IMAGE' ? '이미지 URL' : '파일 URL'}
-              </label>
+              <label className="text-xs text-muted-foreground mb-1 block">URL</label>
               <input
                 type="url"
-                placeholder={captureForm.content_type === 'LINK' ? 'https://...' : captureForm.content_type === 'IMAGE' ? '이미지 URL 또는 촬영 (추후 지원)' : '파일 URL을 입력하세요'}
+                placeholder="https://..."
                 value={captureForm.content_url}
-                onChange={e => setCaptureForm({ content_url: e.target.value })}
+                onChange={e => handleLinkChange(e.target.value)}
                 className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
               />
+              {captureForm.source && (
+                <p className="text-xs text-accent mt-1">출처: {captureForm.source}</p>
+              )}
+            </div>
+          )}
+
+          {/* File/Image upload */}
+          {isFileOrImage && (
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                {contentType === 'IMAGE' ? '이미지 업로드' : '파일 업로드'}
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={acceptTypes}
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              {captureForm.content_url ? (
+                <div className="space-y-2">
+                  {contentType === 'IMAGE' && (
+                    <img src={captureForm.content_url} alt="preview" className="w-full h-32 object-cover rounded-lg border border-border" />
+                  )}
+                  <div className="flex items-center justify-between bg-synapse-deep border border-border rounded-lg px-4 py-3">
+                    <span className="text-sm text-foreground truncate">업로드 완료</span>
+                    <button
+                      onClick={() => {
+                        setCaptureForm({ content_url: '' });
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground ml-2"
+                    >
+                      변경
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full flex items-center justify-center gap-2 bg-synapse-deep border border-dashed border-border rounded-lg px-4 py-6 text-muted-foreground hover:border-accent/50 hover:text-foreground transition-colors"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      업로드 중...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={18} />
+                      {contentType === 'IMAGE' ? '이미지 선택' : '파일 선택'}
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
 
@@ -125,17 +232,19 @@ export function CaptureModal() {
             />
           </div>
 
-          {/* Source */}
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">출처</label>
-            <input
-              type="text"
-              placeholder="출처 앱/웹사이트 이름"
-              value={captureForm.source}
-              onChange={e => setCaptureForm({ source: e.target.value })}
-              className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
-            />
-          </div>
+          {/* Source — only for LINK (auto-filled) */}
+          {isLink && (
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">출처</label>
+              <input
+                type="text"
+                placeholder="URL에서 자동 추출됩니다"
+                value={captureForm.source}
+                onChange={e => setCaptureForm({ source: e.target.value })}
+                className="w-full bg-synapse-deep/50 border border-border/50 rounded-lg px-4 py-3 text-foreground/70 placeholder-muted-foreground/60 focus:outline-none focus:border-accent transition-colors"
+              />
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
@@ -144,7 +253,7 @@ export function CaptureModal() {
           </button>
           <button
             onClick={addCapture}
-            disabled={isText && !captureForm.title.trim()}
+            disabled={(isText && !captureForm.title.trim()) || (!isText && !captureForm.content_url.trim())}
             className="px-6 py-2 text-sm bg-accent text-accent-foreground rounded-lg font-medium hover:bg-accent/90 transition-colors glow-accent disabled:opacity-40 disabled:cursor-not-allowed"
           >
             캡처 추가
