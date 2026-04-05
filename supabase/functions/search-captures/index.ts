@@ -6,6 +6,35 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function generateEmbedding(text: string, openaiApiKey: string): Promise<number[] | null> {
+  try {
+    const response = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: text,
+        dimensions: 1536,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("OpenAI embeddings error:", response.status, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.data?.[0]?.embedding || null;
+  } catch (e) {
+    console.error("Embedding generation error:", e);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -23,7 +52,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
     // Get user
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -39,20 +68,49 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Text search via RPC
-    const { data: textResults, error: textError } = await adminClient.rpc("search_captures", {
+    // Run text search and embedding generation in parallel
+    const textSearchPromise = adminClient.rpc("search_captures", {
       search_query: query.trim(),
       user_id: user.id,
     });
+
+    const embeddingPromise = openaiApiKey
+      ? generateEmbedding(query.trim(), openaiApiKey)
+      : Promise.resolve(null);
+
+    const [{ data: textResults, error: textError }, queryEmbedding] = await Promise.all([
+      textSearchPromise,
+      embeddingPromise,
+    ]);
 
     if (textError) {
       console.error("Text search error:", textError);
     }
 
+    // Semantic search if embedding was generated
+    let semanticResults: unknown[] = [];
+    if (queryEmbedding) {
+      try {
+        const { data: matchData, error: matchError } = await adminClient.rpc("match_captures", {
+          query_embedding: JSON.stringify(queryEmbedding),
+          user_id: user.id,
+          match_threshold: 0.3,
+          match_count: 10,
+        });
+        if (matchError) {
+          console.error("Semantic search error:", matchError);
+        } else if (matchData) {
+          semanticResults = matchData;
+        }
+      } catch (e) {
+        console.error("Semantic search error:", e);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         text_results: textResults || [],
-        semantic_results: [],
+        semantic_results: semanticResults,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
