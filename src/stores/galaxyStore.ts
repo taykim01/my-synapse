@@ -1,10 +1,12 @@
 import { create } from 'zustand';
+import { supabase } from '@/integrations/supabase/client';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const randomRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
 export interface GraphNode {
   id: string;
+  dbId?: string; // Supabase UUID
   type: 'center' | 'keyword' | 'detailed_keyword' | 'capture';
   title: string;
   description?: string;
@@ -27,7 +29,7 @@ export interface GraphLink {
 }
 
 interface GalaxyState {
-  gameState: 'onboarding' | 'exploring';
+  gameState: 'loading' | 'onboarding' | 'exploring';
   nodes: GraphNode[];
   links: GraphLink[];
   selectedNode: GraphNode | null;
@@ -37,7 +39,8 @@ interface GalaxyState {
   searchResults: GraphNode[];
   captureForm: { title: string; description: string; content_type: string; content_url: string; source: string; tag: string };
 
-  startExploration: (keywords: string[]) => void;
+  initFromDB: () => Promise<void>;
+  startExploration: (keywords: string[]) => Promise<void>;
   addCapture: () => void;
   setSelectedNode: (node: GraphNode | null) => void;
   setIsAddingCapture: (v: boolean) => void;
@@ -47,8 +50,47 @@ interface GalaxyState {
   openCaptureModal: () => void;
 }
 
+function buildGraphFromDB(
+  dbNodes: { id: string; title: string }[],
+  dbCaptures: { id: string; title: string; description: string | null; content_type: string; content_url: string | null; source: string | null; connected_to: string | null }[]
+) {
+  const nodes: GraphNode[] = [];
+  const links: GraphLink[] = [];
+
+  const centerId = 'center';
+  nodes.push({ id: centerId, type: 'center', title: '나의 우주', x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0 });
+
+  dbNodes.forEach((n, i) => {
+    const angle = (i / dbNodes.length) * Math.PI * 2;
+    nodes.push({
+      id: n.id, dbId: n.id, type: 'keyword', title: n.title,
+      x: Math.cos(angle) * 100, y: Math.sin(angle) * 100, vx: 0, vy: 0, fx: 0, fy: 0
+    });
+    links.push({ source: centerId, target: n.id });
+  });
+
+  dbCaptures.forEach(c => {
+    const parentId = c.connected_to || (dbNodes.length > 0 ? dbNodes[0].id : centerId);
+    const parent = nodes.find(n => n.id === parentId);
+    nodes.push({
+      id: c.id, dbId: c.id, type: 'capture', title: c.title,
+      description: c.description || undefined,
+      content_type: c.content_type,
+      content_url: c.content_url || undefined,
+      source: c.source || undefined,
+      connected_to: c.connected_to || undefined,
+      x: (parent?.x || 0) + randomRange(-30, 30),
+      y: (parent?.y || 0) + randomRange(-30, 30),
+      vx: 0, vy: 0, fx: 0, fy: 0
+    });
+    links.push({ source: parentId, target: c.id });
+  });
+
+  return { nodes, links };
+}
+
 export const useGalaxyStore = create<GalaxyState>((set, get) => ({
-  gameState: 'onboarding',
+  gameState: 'loading',
   nodes: [],
   links: [],
   selectedNode: null,
@@ -58,26 +100,38 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
   searchResults: [],
   captureForm: { title: '', description: '', content_type: 'TEXT', content_url: '', source: '', tag: '' },
 
-  startExploration: (keywords: string[]) => {
+  initFromDB: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { set({ gameState: 'onboarding' }); return; }
+
+    const { data: dbNodes } = await supabase.from('nodes').select('*').eq('creator_id', user.id);
+    const { data: dbCaptures } = await supabase.from('captures').select('*').eq('creator_id', user.id);
+
+    if (!dbNodes || dbNodes.length === 0) {
+      set({ gameState: 'onboarding' });
+      return;
+    }
+
+    const { nodes, links } = buildGraphFromDB(dbNodes, dbCaptures || []);
+    set({ nodes, links, gameState: 'exploring' });
+  },
+
+  startExploration: async (keywords: string[]) => {
     const validKeywords = keywords.filter(k => k.trim() !== '');
     if (validKeywords.length === 0) return;
 
-    const nodes: GraphNode[] = [];
-    const links: GraphLink[] = [];
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-    const centerId = generateId();
-    nodes.push({ id: centerId, type: 'center', title: '나의 우주', x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0 });
+    // Save keyword nodes to DB
+    const rows = validKeywords.map(kw => ({ title: kw, creator_id: user.id }));
+    const { data: inserted, error } = await supabase.from('nodes').insert(rows).select();
+    if (error || !inserted) {
+      console.error('Failed to save nodes:', error);
+      return;
+    }
 
-    validKeywords.forEach((kw, i) => {
-      const id = generateId();
-      const angle = (i / validKeywords.length) * Math.PI * 2;
-      nodes.push({
-        id, type: 'keyword', title: kw,
-        x: Math.cos(angle) * 100, y: Math.sin(angle) * 100, vx: 0, vy: 0, fx: 0, fy: 0
-      });
-      links.push({ source: centerId, target: id });
-    });
-
+    const { nodes, links } = buildGraphFromDB(inserted, []);
     set({ nodes, links, gameState: 'exploring' });
   },
 
@@ -113,6 +167,23 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
     const parentNode = newNodes.find(n => n.id === targetId)!;
     const captureId = generateId();
+
+    // Save capture to DB asynchronously
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const dbTargetId = targetKeyword.dbId || null;
+      await supabase.from('captures').insert({
+        title,
+        description: captureForm.description || null,
+        content_type: captureForm.content_type,
+        content_url: captureForm.content_url || null,
+        source: captureForm.source || null,
+        creator_id: user.id,
+        connected_to: dbTargetId,
+      });
+    })();
+
     newNodes.push({
       id: captureId, type: 'capture', title,
       description: captureForm.description,
