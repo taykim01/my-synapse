@@ -41,7 +41,7 @@ interface GalaxyState {
 
   initFromDB: () => Promise<void>;
   startExploration: (keywords: string[]) => Promise<void>;
-  addCapture: () => void;
+  addCapture: () => Promise<{ keyword_id?: string; keyword_title?: string } | null>;
   setSelectedNode: (node: GraphNode | null) => void;
   setIsAddingCapture: (v: boolean) => void;
   setCaptureForm: (form: Partial<GalaxyState['captureForm']>) => void;
@@ -135,67 +135,74 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     set({ nodes, links, gameState: 'exploring' });
   },
 
-  addCapture: () => {
+  addCapture: async () => {
     const state = get();
     const { captureForm, nodes, links } = state;
     const isText = captureForm.content_type === 'TEXT';
-    if (isText && !captureForm.title.trim()) return;
-    if (!isText && !captureForm.content_url.trim()) return;
+    if (isText && !captureForm.title.trim()) return null;
+    if (!isText && !captureForm.content_url.trim()) return null;
     const title = captureForm.title.trim() || `${captureForm.content_type} 캡처 — ${new Date().toLocaleDateString('ko-KR')}`;
 
-    const assignedTag = captureForm.tag || `AI_Tag_${Math.floor(Math.random() * 100)}`;
-    const keywordNodes = nodes.filter(n => n.type === 'keyword');
-    const targetKeyword = keywordNodes[Math.floor(Math.random() * keywordNodes.length)];
-    if (!targetKeyword) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
-    const connectedLinks = links.filter(l => l.target === targetKeyword.id || l.source === targetKeyword.id);
-    let targetId = targetKeyword.id;
+    // Save capture to DB first (connected_to = null)
+    const { data: insertedCapture, error: insertError } = await supabase.from('captures').insert({
+      title,
+      description: captureForm.description || null,
+      content_type: captureForm.content_type,
+      content_url: captureForm.content_url || null,
+      source: captureForm.source || null,
+      creator_id: user.id,
+      connected_to: null,
+    }).select().single();
 
+    if (insertError || !insertedCapture) {
+      console.error('Failed to save capture:', insertError);
+      return null;
+    }
+
+    // Call AI to assign keyword
+    let assignedKeywordId: string | null = null;
+    let assignedKeywordTitle = '';
+    try {
+      const { data: aiResult, error: aiError } = await supabase.functions.invoke('assign-capture-keyword', {
+        body: {
+          capture_id: insertedCapture.id,
+          title,
+          description: captureForm.description || '',
+          content_type: captureForm.content_type,
+          content_url: captureForm.content_url || '',
+        },
+      });
+      if (!aiError && aiResult?.keyword_id) {
+        assignedKeywordId = aiResult.keyword_id;
+        assignedKeywordTitle = aiResult.keyword_title || '';
+      }
+    } catch (e) {
+      console.error('AI keyword assignment failed:', e);
+    }
+
+    // Find the target keyword node in local graph
+    const targetId = assignedKeywordId || nodes.find(n => n.type === 'keyword')?.id;
+    if (!targetId) return null;
+
+    const parentNode = nodes.find(n => n.id === targetId);
     const newNodes = [...nodes];
     const newLinks = [...links];
 
-    if (connectedLinks.length > 2 && Math.random() > 0.3) {
-      const detailedId = generateId();
-      newNodes.push({
-        id: detailedId, type: 'detailed_keyword', title: `#${assignedTag}`,
-        x: targetKeyword.x + randomRange(-20, 20), y: targetKeyword.y + randomRange(-20, 20),
-        vx: 0, vy: 0, fx: 0, fy: 0
-      });
-      newLinks.push({ source: targetKeyword.id, target: detailedId });
-      targetId = detailedId;
-    }
-
-    const parentNode = newNodes.find(n => n.id === targetId)!;
-    const captureId = generateId();
-
-    // Save capture to DB asynchronously
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const dbTargetId = targetKeyword.dbId || null;
-      await supabase.from('captures').insert({
-        title,
-        description: captureForm.description || null,
-        content_type: captureForm.content_type,
-        content_url: captureForm.content_url || null,
-        source: captureForm.source || null,
-        creator_id: user.id,
-        connected_to: dbTargetId,
-      });
-    })();
-
     newNodes.push({
-      id: captureId, type: 'capture', title,
+      id: insertedCapture.id, dbId: insertedCapture.id, type: 'capture', title,
       description: captureForm.description,
       content_type: captureForm.content_type,
       content_url: captureForm.content_url,
       source: captureForm.source,
-      tags: [assignedTag],
       connected_to: targetId,
-      x: parentNode.x + randomRange(-30, 30), y: parentNode.y + randomRange(-30, 30),
+      x: (parentNode?.x || 0) + randomRange(-30, 30),
+      y: (parentNode?.y || 0) + randomRange(-30, 30),
       vx: 0, vy: 0, fx: 0, fy: 0
     });
-    newLinks.push({ source: targetId, target: captureId });
+    newLinks.push({ source: targetId, target: insertedCapture.id });
 
     set({
       nodes: newNodes,
@@ -203,6 +210,8 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       captureForm: { title: '', description: '', content_type: 'TEXT', content_url: '', source: '', tag: '' },
       isAddingCapture: false,
     });
+
+    return { keyword_id: assignedKeywordId || undefined, keyword_title: assignedKeywordTitle || undefined };
   },
 
   setSelectedNode: (node) => {
