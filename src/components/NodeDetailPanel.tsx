@@ -1,5 +1,83 @@
 import { useGalaxyStore } from '@/stores/galaxyStore';
-import { X } from 'lucide-react';
+import { X, ExternalLink } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+
+interface LinkMeta {
+  title: string;
+  thumbnail: string;
+  description: string;
+}
+
+function LinkPreviewCard({ url }: { url: string }) {
+  const [meta, setMeta] = useState<LinkMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setMeta(null);
+
+    supabase.functions.invoke('fetch-url-metadata', { body: { url } })
+      .then(({ data }) => {
+        if (!cancelled && data) {
+          setMeta({ title: data.title || '', thumbnail: data.thumbnail || '', description: data.description || '' });
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [url]);
+
+  const domain = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+
+  if (loading) {
+    return (
+      <div className="mb-4 rounded-xl border border-border bg-muted/50 p-4 animate-pulse">
+        <div className="h-32 bg-muted rounded-lg mb-3" />
+        <div className="h-4 bg-muted rounded w-3/4 mb-2" />
+        <div className="h-3 bg-muted rounded w-1/2" />
+      </div>
+    );
+  }
+
+  if (!meta || (!meta.thumbnail && !meta.title && !meta.description)) {
+    return null;
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block mb-4 rounded-xl border border-border bg-muted/50 overflow-hidden hover:border-primary/40 transition-colors group"
+    >
+      {meta.thumbnail && (
+        <div className="w-full h-36 overflow-hidden bg-muted">
+          <img
+            src={meta.thumbnail}
+            alt={meta.title || 'Link preview'}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        </div>
+      )}
+      <div className="p-3">
+        {meta.title && (
+          <h4 className="text-sm font-medium text-foreground line-clamp-2 mb-1">{meta.title}</h4>
+        )}
+        {meta.description && (
+          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{meta.description}</p>
+        )}
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <ExternalLink size={10} />
+          <span>{domain}</span>
+        </div>
+      </div>
+    </a>
+  );
+}
 
 export function NodeDetailPanel() {
   const selectedNode = useGalaxyStore(s => s.selectedNode);
@@ -44,6 +122,10 @@ export function NodeDetailPanel() {
             >
               {displayNode.content_url}
             </a>
+          )}
+
+          {displayNode.content_type === 'LINK' && displayNode.content_url && (
+            <LinkPreviewCard url={displayNode.content_url} />
           )}
 
           {displayNode.description && (
