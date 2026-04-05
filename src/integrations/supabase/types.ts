@@ -14,130 +14,13 @@ export type Database = {
   }
   public: {
     Tables: {
-      captures: {
-        Row: {
-          connected_to: string | null
-          content_type: string
-          content_url: string | null
-          created_at: string
-          creator_id: string
-          description: string | null
-          embedding: string | null
-          id: string
-          source: string | null
-          title: string
-        }
-        Insert: {
-          connected_to?: string | null
-          content_type: string
-          content_url?: string | null
-          created_at?: string
-          creator_id: string
-          description?: string | null
-          embedding?: string | null
-          id?: string
-          source?: string | null
-          title?: string
-        }
-        Update: {
-          connected_to?: string | null
-          content_type?: string
-          content_url?: string | null
-          created_at?: string
-          creator_id?: string
-          description?: string | null
-          embedding?: string | null
-          id?: string
-          source?: string | null
-          title?: string
-        }
-        Relationships: []
-      }
-      nodes: {
-        Row: {
-          created_at: string
-          creator_id: string
-          id: string
-          title: string
-        }
-        Insert: {
-          created_at?: string
-          creator_id: string
-          id?: string
-          title: string
-        }
-        Update: {
-          created_at?: string
-          creator_id?: string
-          id?: string
-          title?: string
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          created_at: string
-          email: string | null
-          id: string
-          user_id: string
-          username: string | null
-        }
-        Insert: {
-          created_at?: string
-          email?: string | null
-          id?: string
-          user_id: string
-          username?: string | null
-        }
-        Update: {
-          created_at?: string
-          email?: string | null
-          id?: string
-          user_id?: string
-          username?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      match_captures: {
-        Args: {
-          match_count: number
-          match_threshold: number
-          query_embedding: string
-          user_id: string
-        }
-        Returns: {
-          body: string
-          id: string
-          similarity: number
-          title: string
-        }[]
-      }
-      search_captures: {
-        Args: { query_text: string; user_id: string }
-        Returns: {
-          connected_to: string | null
-          content_type: string
-          content_url: string | null
-          created_at: string
-          creator_id: string
-          description: string | null
-          embedding: string | null
-          id: string
-          source: string | null
-          title: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "captures"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
