@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    
 
     // Get user
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         text_results: textResults || [],
-        semantic_results: semanticResults,
+        semantic_results: [],
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
