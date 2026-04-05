@@ -24,15 +24,37 @@ export function NodeDetailPanel() {
 
       {displayNode?.type === 'capture' && (
         <>
-          {displayNode?.body && (
+          {displayNode.content_type && (
+            <div className="mb-3">
+              <span className="text-[10px] bg-accent/20 text-accent border border-accent/30 px-2 py-0.5 rounded">
+                {displayNode.content_type}
+              </span>
+              {displayNode.source && (
+                <span className="text-[10px] text-muted-foreground ml-2">출처: {displayNode.source}</span>
+              )}
+            </div>
+          )}
+
+          {displayNode.content_url && (
+            <a
+              href={displayNode.content_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline mb-3 block truncate"
+            >
+              {displayNode.content_url}
+            </a>
+          )}
+
+          {displayNode.description && (
             <div className="flex-1 overflow-y-auto mb-6">
               <p className="text-muted-foreground text-sm whitespace-pre-wrap leading-relaxed bg-muted/50 p-4 rounded-xl border border-border">
-                {displayNode.body}
+                {displayNode.description}
               </p>
             </div>
           )}
 
-          {displayNode?.tags && displayNode.tags.length > 0 && (
+          {displayNode.tags && displayNode.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-auto pt-4 border-t border-border">
               {displayNode.tags.map((tag, idx) => (
                 <span
@@ -58,7 +80,7 @@ export function NodeDetailPanel() {
                 onClick={() => setSelectedNode(capture)}
               >
                 <h4 className="text-foreground text-sm font-medium group-hover:text-secondary transition-colors">{capture.title}</h4>
-                {capture.body && <p className="text-muted-foreground text-xs mt-1.5 line-clamp-2 leading-relaxed">{capture.body}</p>}
+                {capture.description && <p className="text-muted-foreground text-xs mt-1.5 line-clamp-2 leading-relaxed">{capture.description}</p>}
               </div>
             ))
           ) : (

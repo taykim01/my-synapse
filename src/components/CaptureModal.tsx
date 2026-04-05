@@ -1,6 +1,8 @@
 import { useGalaxyStore } from '@/stores/galaxyStore';
 import { X } from 'lucide-react';
 
+const CONTENT_TYPES = ['TEXT', 'IMAGE', 'LINK', 'FILE'] as const;
+
 export function CaptureModal() {
   const captureForm = useGalaxyStore(s => s.captureForm);
   const setCaptureForm = useGalaxyStore(s => s.setCaptureForm);
@@ -18,27 +20,79 @@ export function CaptureModal() {
         </div>
 
         <div className="space-y-4">
+          {/* Content Type */}
+          <div>
+            <label className="text-xs text-muted-foreground mb-2 block">콘텐츠 유형</label>
+            <div className="flex gap-2">
+              {CONTENT_TYPES.map(ct => (
+                <button
+                  key={ct}
+                  onClick={() => setCaptureForm({ content_type: ct })}
+                  className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                    captureForm.content_type === ct
+                      ? 'bg-accent text-accent-foreground border-accent'
+                      : 'bg-synapse-deep border-border text-muted-foreground hover:border-accent/50'
+                  }`}
+                >
+                  {ct}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Title */}
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">제목 (Title)</label>
             <input
               type="text"
               placeholder="어떤 정보인가요?"
               value={captureForm.title}
-              onChange={e => setCaptureForm({ ...captureForm, title: e.target.value })}
+              onChange={e => setCaptureForm({ title: e.target.value })}
               className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
             />
           </div>
+
+          {/* Content URL (for IMAGE, LINK, FILE) */}
+          {captureForm.content_type !== 'TEXT' && (
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                {captureForm.content_type === 'LINK' ? 'URL' : `${captureForm.content_type} URL`}
+              </label>
+              <input
+                type="url"
+                placeholder="https://..."
+                value={captureForm.content_url}
+                onChange={e => setCaptureForm({ content_url: e.target.value })}
+                className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
+              />
+            </div>
+          )}
+
+          {/* Description */}
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">내용 (Body)</label>
+            <label className="text-xs text-muted-foreground mb-1 block">메모 (Description)</label>
             <textarea
               placeholder="세부 내용을 기록하세요."
-              value={captureForm.body}
-              onChange={e => setCaptureForm({ ...captureForm, body: e.target.value })}
-              rows={4}
+              value={captureForm.description}
+              onChange={e => setCaptureForm({ description: e.target.value })}
+              rows={3}
               className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent resize-none transition-colors"
             />
           </div>
 
+          {/* Source */}
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">출처 (Source)</label>
+            <input
+              type="text"
+              placeholder="출처 앱/웹사이트 이름"
+              value={captureForm.source}
+              onChange={e => setCaptureForm({ source: e.target.value })}
+              className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
+            />
+          </div>
+
+          {/* Tag */}
           <div>
             <div className="flex justify-between items-end mb-1">
               <label className="text-xs text-muted-foreground">태그 (Tag)</label>
@@ -47,7 +101,7 @@ export function CaptureModal() {
             <input
               type="text"
               value={captureForm.tag}
-              onChange={e => setCaptureForm({ ...captureForm, tag: e.target.value })}
+              onChange={e => setCaptureForm({ tag: e.target.value })}
               className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
               placeholder="태그 없이도 게시 가능"
             />
