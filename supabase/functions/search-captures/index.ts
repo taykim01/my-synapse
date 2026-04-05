@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    
 
     // Get user
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -39,67 +39,12 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // 1. Text search via RPC
-    const textSearchPromise = adminClient.rpc("search_captures", {
+    // Text search via RPC
+    const { data: textResults, error: textError } = await adminClient.rpc("search_captures", {
       search_query: query.trim(),
       user_id: user.id,
     });
 
-    // 2. Semantic search: generate embedding then match
-    let semanticResults: any[] = [];
-    if (lovableApiKey) {
-      try {
-        // Generate embedding for query using AI
-        const embeddingResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${lovableApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: [
-              {
-                role: "system",
-                content: `You are an embedding generator. Given a search query, output ONLY a JSON array of 1536 floating-point numbers representing a semantic embedding vector. No explanation, no markdown, just the raw JSON array.`,
-              },
-              {
-                role: "user",
-                content: `Generate a 1536-dimensional embedding vector for this search query: "${query.trim()}"`,
-              },
-            ],
-            temperature: 0,
-          }),
-        });
-
-        if (embeddingResponse.ok) {
-          const embData = await embeddingResponse.json();
-          const content = embData.choices?.[0]?.message?.content || "";
-          
-          // Try to parse the embedding array
-          const match = content.match(/\[[\s\S]*\]/);
-          if (match) {
-            const embedding = JSON.parse(match[0]);
-            if (Array.isArray(embedding) && embedding.length === 1536) {
-              const embeddingStr = `[${embedding.join(",")}]`;
-              const { data: matchData } = await adminClient.rpc("match_captures", {
-                query_embedding: embeddingStr,
-                user_id: user.id,
-                match_threshold: 0.5,
-                match_count: 10,
-              });
-              if (matchData) {
-                semanticResults = matchData;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Semantic search error:", e);
-      }
-    }
-
-    const { data: textResults, error: textError } = await textSearchPromise;
     if (textError) {
       console.error("Text search error:", textError);
     }
@@ -107,7 +52,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         text_results: textResults || [],
-        semantic_results: semanticResults,
+        semantic_results: [],
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
