@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
@@ -7,7 +6,36 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-serve(async (req) => {
+async function generateEmbedding(text: string, openaiApiKey: string): Promise<number[] | null> {
+  try {
+    const response = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        input: text,
+        dimensions: 1536,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("OpenAI embeddings error:", response.status, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.data?.[0]?.embedding || null;
+  } catch (e) {
+    console.error("Embedding generation error:", e);
+    return null;
+  }
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -22,18 +50,17 @@ serve(async (req) => {
       });
     }
 
-    // Get user from auth header
     const authHeader = req.headers.get("Authorization");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!lovableApiKey) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Use anon client to get user
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader || "" } },
     });
@@ -45,7 +72,6 @@ serve(async (req) => {
       });
     }
 
-    // Fetch user's keyword nodes
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
     const { data: keywords, error: kwError } = await adminClient
       .from("nodes")
@@ -59,7 +85,7 @@ serve(async (req) => {
       });
     }
 
-    // Build capture context for AI
+    // Build capture context
     let captureContext = `제목: ${title || "(없음)"}`;
     if (description) captureContext += `\n메모: ${description}`;
     if (content_type) captureContext += `\n형식: ${content_type}`;
@@ -67,8 +93,8 @@ serve(async (req) => {
 
     const keywordList = keywords.map((k) => `- ID: "${k.id}", 키워드: "${k.title}"`).join("\n");
 
-    // Call AI with tool-calling
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Run AI keyword assignment and embedding generation in parallel
+    const aiPromise = fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${lovableApiKey}`,
@@ -122,6 +148,15 @@ ${keywordList}`,
       }),
     });
 
+    // Generate embedding text from capture content
+    const embeddingText = [title, description, content_url].filter(Boolean).join(" ");
+    const embeddingPromise = openaiApiKey
+      ? generateEmbedding(embeddingText, openaiApiKey)
+      : Promise.resolve(null);
+
+    const [aiResponse, embedding] = await Promise.all([aiPromise, embeddingPromise]);
+
+    // Process AI keyword response
     if (!aiResponse.ok) {
       const errText = await aiResponse.text();
       console.error("AI gateway error:", aiResponse.status, errText);
@@ -157,7 +192,6 @@ ${keywordList}`,
       }
     }
 
-    // Validate the selected keyword exists
     if (selectedKeywordId && !keywords.find((k) => k.id === selectedKeywordId)) {
       console.warn("AI selected invalid keyword, falling back to first");
       selectedKeywordId = keywords[0].id;
@@ -167,10 +201,15 @@ ${keywordList}`,
       selectedKeywordId = keywords[0].id;
     }
 
-    // Update capture's connected_to
+    // Update capture with keyword and embedding
+    const updateData: Record<string, unknown> = { connected_to: selectedKeywordId };
+    if (embedding) {
+      updateData.embedding = JSON.stringify(embedding);
+    }
+
     const { error: updateError } = await adminClient
       .from("captures")
-      .update({ connected_to: selectedKeywordId })
+      .update(updateData)
       .eq("id", capture_id)
       .eq("creator_id", user.id);
 
@@ -185,6 +224,7 @@ ${keywordList}`,
         keyword_id: selectedKeywordId,
         keyword_title: selectedKeyword?.title || "",
         reason,
+        has_embedding: !!embedding,
       }),
       {
         status: 200,
