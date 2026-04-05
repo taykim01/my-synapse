@@ -90,17 +90,20 @@ Deno.serve(async (req) => {
     // Semantic search if embedding was generated
     let semanticResults: unknown[] = [];
     if (queryEmbedding) {
+      console.log("Query embedding generated, length:", queryEmbedding.length);
       try {
+        const embeddingStr = `[${queryEmbedding.join(",")}]`;
         const { data: matchData, error: matchError } = await adminClient.rpc("match_captures", {
-          query_embedding: JSON.stringify(queryEmbedding),
+          query_embedding: embeddingStr,
           user_id: user.id,
           match_threshold: 0.3,
           match_count: 10,
         });
         if (matchError) {
           console.error("Semantic search error:", matchError);
-        } else if (matchData) {
-          semanticResults = matchData;
+        } else {
+          console.log("Semantic results count:", matchData?.length || 0);
+          semanticResults = matchData || [];
         }
       } catch (e) {
         console.error("Semantic search error:", e);
