@@ -153,7 +153,7 @@ export function NodeDetailPanel() {
           )}
 
           {displayNode.tags && displayNode.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-auto pt-4 border-t border-border">
+            <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
               {displayNode.tags.map((tag, idx) => (
                 <span
                   key={idx}
@@ -164,6 +164,15 @@ export function NodeDetailPanel() {
               ))}
             </div>
           )}
+
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50"
+          >
+            <Trash2 size={14} />
+            {deleting ? '삭제 중...' : '캡처 삭제'}
+          </button>
         </>
       )}
 
