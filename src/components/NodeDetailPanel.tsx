@@ -124,6 +124,10 @@ export function NodeDetailPanel() {
             </a>
           )}
 
+          {displayNode.content_type === 'LINK' && displayNode.content_url && (
+            <LinkPreviewCard url={displayNode.content_url} />
+          )}
+
           {displayNode.description && (
             <div className="flex-1 overflow-y-auto mb-6">
               <p className="text-muted-foreground text-sm whitespace-pre-wrap leading-relaxed bg-muted/50 p-4 rounded-xl border border-border">
