@@ -114,7 +114,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const parentNode = newNodes.find(n => n.id === targetId)!;
     const captureId = generateId();
     newNodes.push({
-      id: captureId, type: 'capture', title: captureForm.title,
+      id: captureId, type: 'capture', title,
       description: captureForm.description,
       content_type: captureForm.content_type,
       content_url: captureForm.content_url,
