@@ -45,7 +45,7 @@ interface GalaxyState {
   setSelectedNode: (node: GraphNode | null) => void;
   setIsAddingCapture: (v: boolean) => void;
   setCaptureForm: (form: Partial<GalaxyState['captureForm']>) => void;
-  handleSearch: (query: string) => void;
+  handleSearch: (query: string) => Promise<void>;
   getConnectedCaptures: (keywordId: string) => GraphNode[];
   deleteCapture: (captureId: string) => Promise<boolean>;
   openCaptureModal: () => void;
