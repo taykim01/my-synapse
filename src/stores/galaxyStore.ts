@@ -7,8 +7,12 @@ export interface GraphNode {
   id: string;
   type: 'center' | 'keyword' | 'detailed_keyword' | 'capture';
   title: string;
-  body?: string;
+  description?: string;
+  content_type?: string;
+  content_url?: string;
+  source?: string;
   tags?: string[];
+  connected_to?: string;
   x: number;
   y: number;
   vx: number;
@@ -31,13 +35,13 @@ interface GalaxyState {
   isAddingCapture: boolean;
   searchQuery: string;
   searchResults: GraphNode[];
-  captureForm: { title: string; body: string; tag: string };
+  captureForm: { title: string; description: string; content_type: string; content_url: string; source: string; tag: string };
 
   startExploration: (keywords: string[]) => void;
   addCapture: () => void;
   setSelectedNode: (node: GraphNode | null) => void;
   setIsAddingCapture: (v: boolean) => void;
-  setCaptureForm: (form: { title: string; body: string; tag: string }) => void;
+  setCaptureForm: (form: Partial<GalaxyState['captureForm']>) => void;
   handleSearch: (query: string) => void;
   getConnectedCaptures: (keywordId: string) => GraphNode[];
   openCaptureModal: () => void;
@@ -52,7 +56,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
   isAddingCapture: false,
   searchQuery: '',
   searchResults: [],
-  captureForm: { title: '', body: '', tag: '' },
+  captureForm: { title: '', description: '', content_type: 'TEXT', content_url: '', source: '', tag: '' },
 
   startExploration: (keywords: string[]) => {
     const validKeywords = keywords.filter(k => k.trim() !== '');
@@ -107,7 +111,13 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const parentNode = newNodes.find(n => n.id === targetId)!;
     const captureId = generateId();
     newNodes.push({
-      id: captureId, type: 'capture', title: captureForm.title, body: captureForm.body, tags: [assignedTag],
+      id: captureId, type: 'capture', title: captureForm.title,
+      description: captureForm.description,
+      content_type: captureForm.content_type,
+      content_url: captureForm.content_url,
+      source: captureForm.source,
+      tags: [assignedTag],
+      connected_to: targetId,
       x: parentNode.x + randomRange(-30, 30), y: parentNode.y + randomRange(-30, 30),
       vx: 0, vy: 0, fx: 0, fy: 0
     });
@@ -116,7 +126,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     set({
       nodes: newNodes,
       links: newLinks,
-      captureForm: { title: '', body: '', tag: '' },
+      captureForm: { title: '', description: '', content_type: 'TEXT', content_url: '', source: '', tag: '' },
       isAddingCapture: false,
     });
   },
@@ -130,12 +140,12 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
   setIsAddingCapture: (v) => set({ isAddingCapture: v }),
 
-  setCaptureForm: (form) => set({ captureForm: form }),
+  setCaptureForm: (form) => set(state => ({ captureForm: { ...state.captureForm, ...form } })),
 
   openCaptureModal: () => {
     set({
       isAddingCapture: true,
-      captureForm: { title: '', body: '', tag: 'AI제안_태그' },
+      captureForm: { title: '', description: '', content_type: 'TEXT', content_url: '', source: '', tag: 'AI제안_태그' },
     });
   },
 
@@ -147,7 +157,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       return;
     }
     const results = get().nodes.filter(n =>
-      n.type !== 'center' && (n.title.toLowerCase().includes(q) || (n.body && n.body.toLowerCase().includes(q)))
+      n.type !== 'center' && (n.title.toLowerCase().includes(q) || (n.description && n.description.toLowerCase().includes(q)))
     );
     set({ searchResults: results });
   },

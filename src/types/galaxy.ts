@@ -5,8 +5,12 @@ export interface GalaxyNode {
   type: NodeType;
   label: string;
   title?: string;
-  body?: string;
+  description?: string;
+  content_type?: string;
+  content_url?: string;
+  source?: string;
   tags?: string[];
+  connected_to?: string;
   x: number;
   y: number;
   originX: number;
@@ -17,15 +21,11 @@ export interface GalaxyNode {
   captureCount?: number;
 }
 
-export interface Connection {
-  id: string;
-  from: string;
-  to: string;
-  strength: number;
-}
-
 export interface CaptureInput {
   title: string;
-  body: string;
+  description: string;
+  content_type: string;
+  content_url?: string;
+  source?: string;
   tags: string[];
 }

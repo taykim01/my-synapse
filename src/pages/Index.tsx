@@ -1,9 +1,10 @@
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, LogOut } from 'lucide-react';
 import { GalaxyCanvas } from '@/components/GalaxyCanvas';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { CaptureModal } from '@/components/CaptureModal';
 import { NodeDetailPanel } from '@/components/NodeDetailPanel';
 import { useGalaxyStore } from '@/stores/galaxyStore';
+import { useAuth } from '@/hooks/useAuth';
 
 const Index = () => {
   const gameState = useGalaxyStore(s => s.gameState);
@@ -13,6 +14,7 @@ const Index = () => {
   const isAddingCapture = useGalaxyStore(s => s.isAddingCapture);
   const openCaptureModal = useGalaxyStore(s => s.openCaptureModal);
   const nodes = useGalaxyStore(s => s.nodes);
+  const { signOut } = useAuth();
 
   if (gameState === 'onboarding') {
     return <OnboardingModal />;
@@ -24,9 +26,18 @@ const Index = () => {
 
       {/* Header */}
       <header className="absolute top-0 left-0 w-full p-6 z-10 flex justify-between items-start pointer-events-none">
-        <div className="pointer-events-auto">
-          <h1 className="text-xl font-display text-primary tracking-widest drop-shadow-lg">SYNAPSE</h1>
-          <p className="text-xs text-muted-foreground mt-1">뉴런 네트워크 탐사</p>
+        <div className="pointer-events-auto flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-display text-primary tracking-widest drop-shadow-lg">SYNAPSE</h1>
+            <p className="text-xs text-muted-foreground mt-1">뉴런 네트워크 탐사</p>
+          </div>
+          <button
+            onClick={signOut}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="로그아웃"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
 
         {/* Search */}
