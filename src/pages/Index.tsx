@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Search, Plus, LogOut } from 'lucide-react';
 import { GalaxyCanvas } from '@/components/GalaxyCanvas';
 import { OnboardingModal } from '@/components/OnboardingModal';
@@ -14,7 +15,20 @@ const Index = () => {
   const isAddingCapture = useGalaxyStore(s => s.isAddingCapture);
   const openCaptureModal = useGalaxyStore(s => s.openCaptureModal);
   const nodes = useGalaxyStore(s => s.nodes);
-  const { signOut } = useAuth();
+  const initFromDB = useGalaxyStore(s => s.initFromDB);
+  const { signOut, user } = useAuth();
+
+  useEffect(() => {
+    if (user) initFromDB();
+  }, [user]);
+
+  if (gameState === 'loading') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground animate-pulse">네트워크 불러오는 중...</p>
+      </div>
+    );
+  }
 
   if (gameState === 'onboarding') {
     return <OnboardingModal />;
