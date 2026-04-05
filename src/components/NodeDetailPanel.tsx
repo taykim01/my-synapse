@@ -1,7 +1,8 @@
 import { useGalaxyStore } from '@/stores/galaxyStore';
-import { X, ExternalLink } from 'lucide-react';
+import { X, ExternalLink, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 interface LinkMeta {
   title: string;
@@ -84,8 +85,23 @@ export function NodeDetailPanel() {
   const activeNode = useGalaxyStore(s => s.activeNode);
   const setSelectedNode = useGalaxyStore(s => s.setSelectedNode);
   const getConnectedCaptures = useGalaxyStore(s => s.getConnectedCaptures);
+  const deleteCapture = useGalaxyStore(s => s.deleteCapture);
+  const [deleting, setDeleting] = useState(false);
 
   const displayNode = activeNode;
+
+  const handleDelete = async () => {
+    if (!displayNode?.dbId) return;
+    if (!confirm('이 캡처를 삭제하시겠습니까?')) return;
+    setDeleting(true);
+    const ok = await deleteCapture(displayNode.dbId);
+    setDeleting(false);
+    if (ok) {
+      toast({ title: '캡처가 삭제되었습니다.' });
+    } else {
+      toast({ title: '삭제에 실패했습니다.', variant: 'destructive' });
+    }
+  };
 
   return (
     <div
@@ -137,7 +153,7 @@ export function NodeDetailPanel() {
           )}
 
           {displayNode.tags && displayNode.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-auto pt-4 border-t border-border">
+            <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
               {displayNode.tags.map((tag, idx) => (
                 <span
                   key={idx}
@@ -148,6 +164,15 @@ export function NodeDetailPanel() {
               ))}
             </div>
           )}
+
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50"
+          >
+            <Trash2 size={14} />
+            {deleting ? '삭제 중...' : '캡처 삭제'}
+          </button>
         </>
       )}
 

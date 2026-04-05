@@ -47,6 +47,7 @@ interface GalaxyState {
   setCaptureForm: (form: Partial<GalaxyState['captureForm']>) => void;
   handleSearch: (query: string) => void;
   getConnectedCaptures: (keywordId: string) => GraphNode[];
+  deleteCapture: (captureId: string) => Promise<boolean>;
   openCaptureModal: () => void;
 }
 
@@ -268,5 +269,19 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       }
     });
     return captures;
+  },
+
+  deleteCapture: async (captureId: string) => {
+    const { error } = await supabase.from('captures').delete().eq('id', captureId);
+    if (error) {
+      console.error('Failed to delete capture:', error);
+      return false;
+    }
+    set(state => ({
+      nodes: state.nodes.filter(n => n.id !== captureId),
+      links: state.links.filter(l => l.source !== captureId && l.target !== captureId),
+      selectedNode: state.selectedNode?.id === captureId ? null : state.selectedNode,
+    }));
+    return true;
   },
 }));
