@@ -45,7 +45,7 @@ interface GalaxyState {
   setSelectedNode: (node: GraphNode | null) => void;
   setIsAddingCapture: (v: boolean) => void;
   setCaptureForm: (form: Partial<GalaxyState['captureForm']>) => void;
-  handleSearch: (query: string) => void;
+  handleSearch: (query: string) => Promise<void>;
   getConnectedCaptures: (keywordId: string) => GraphNode[];
   deleteCapture: (captureId: string) => Promise<boolean>;
   openCaptureModal: () => void;
@@ -233,17 +233,81 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     });
   },
 
-  handleSearch: (query: string) => {
-    const q = query.toLowerCase();
+  handleSearch: async (query: string) => {
+    const q = query.trim();
     set({ searchQuery: query });
     if (!q) {
       set({ searchResults: [] });
       return;
     }
-    const results = get().nodes.filter(n =>
-      n.type !== 'center' && (n.title.toLowerCase().includes(q) || (n.description && n.description.toLowerCase().includes(q)))
+
+    // Immediate local filtering for instant feedback
+    const localResults = get().nodes.filter(n =>
+      n.type !== 'center' && (n.title.toLowerCase().includes(q.toLowerCase()) || (n.description && n.description.toLowerCase().includes(q.toLowerCase())))
     );
-    set({ searchResults: results });
+    set({ searchResults: localResults });
+
+    // Then call server for text + semantic search
+    try {
+      const { data, error } = await supabase.functions.invoke('search-captures', {
+        body: { query: q },
+      });
+
+      if (error || !data) return;
+
+      const { text_results = [], semantic_results = [] } = data;
+      const seen = new Set<string>();
+      const merged: GraphNode[] = [];
+      const existingNodes = get().nodes;
+
+      // Add text matches first
+      for (const r of text_results) {
+        if (!seen.has(r.id)) {
+          seen.add(r.id);
+          const existing = existingNodes.find(n => n.id === r.id);
+          if (existing) {
+            merged.push(existing);
+          } else {
+            merged.push({
+              id: r.id, dbId: r.id, type: 'capture', title: r.title,
+              description: r.description || undefined,
+              content_type: r.content_type,
+              content_url: r.content_url || undefined,
+              source: r.source || undefined,
+              connected_to: r.connected_to || undefined,
+              x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0,
+            });
+          }
+        }
+      }
+
+      // Add semantic matches
+      for (const r of semantic_results) {
+        if (!seen.has(r.id)) {
+          seen.add(r.id);
+          const existing = existingNodes.find(n => n.id === r.id);
+          if (existing) {
+            merged.push(existing);
+          } else {
+            merged.push({
+              id: r.id, dbId: r.id, type: 'capture', title: r.title,
+              description: r.description || undefined,
+              content_type: r.content_type,
+              x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0,
+            });
+          }
+        }
+      }
+
+      // Also include local keyword node matches
+      const keywordMatches = existingNodes.filter(n =>
+        n.type === 'keyword' && n.title.toLowerCase().includes(q.toLowerCase()) && !seen.has(n.id)
+      );
+
+      set({ searchResults: [...merged, ...keywordMatches] });
+    } catch (e) {
+      console.error('Server search failed, using local results:', e);
+    }
   },
 
   getConnectedCaptures: (keywordId: string) => {
