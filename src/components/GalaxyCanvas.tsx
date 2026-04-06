@@ -372,20 +372,9 @@ export function GalaxyCanvas() {
         else if (node.type === 'detailed_keyword') radius = 6;
         else radius = 4;
 
-        const glowGradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, radius * 1.6);
-        glowGradient.addColorStop(0, colors.glow.replace(/[\d.]+\)$/, '0.15)'));
-        glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
-
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, radius * 1.6, 0, Math.PI * 2);
-        ctx.fillStyle = glowGradient;
-        ctx.fill();
-
-        // Core
+        // Core (flat, no glow)
         ctx.beginPath();
         ctx.fillStyle = colors.core;
-        ctx.shadowBlur = 5;
-        ctx.shadowColor = colors.core;
 
         // Apply LOD fade
         let nodeAlpha = 1;
@@ -394,8 +383,6 @@ export function GalaxyCanvas() {
 
         if (searchQuery && searchHighlightNodes.has(node.id)) {
           radius *= 2;
-          ctx.shadowBlur = 30;
-          ctx.shadowColor = '#10b981';
           nodeAlpha = 1;
         } else if (searchQuery) {
           nodeAlpha *= 0.05;
@@ -412,7 +399,6 @@ export function GalaxyCanvas() {
           ctx.stroke();
         }
 
-        ctx.shadowBlur = 0;
         ctx.globalAlpha = 1.0;
 
         // Labels
