@@ -2,6 +2,9 @@ import { create } from "zustand";
 import { supabase } from "@/integrations/supabase/client";
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+/** 캡처 간 유사도 임계값 — 이 값 이하이면 새 DetailedKeyword를 생성합니다 */
+export const SIMILARITY_THRESHOLD = 0.3;
 const randomRange = (min: number, max: number) => Math.random() * (max - min) + min;
 let _searchRequestId = 0;
 
