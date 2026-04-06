@@ -1,35 +1,39 @@
+## "인공지능" 검색 시 "주코프" 캡처가 표시되는 문제 분석 및 해결
+
+### 원인 분석
+
+데이터를 확인한 결과:
+
+- **"주코프" 캡처**는 "역사" 키워드 노드에 연결되어 있고, 임베딩도 없음 (NULL)
+- DB의 텍스트 검색(`search_captures` RPC)은 "인공지능"으로 검색 시 정확히 1건만 반환 ("인공지능의 미래와 윤리적 과제")
+- 시맨틱 검색도 임베딩이 없는 캡처는 매칭 불가
+
+**가장 가능성 높은 원인 2가지:**
+
+1. **검색 Race Condition**: `handleSearch`가 타이핑할 때마다 호출되는데, 서버 응답이 순서 없이 도착하면 이전 쿼리의 결과가 최신 결과를 덮어쓸 수 있음
+2. **캔버스 시각적 혼동**: `showCaptures`가 true일 때 모든 캡처가 화면에 표시됨 (검색 결과가 아닌 캡처는 alpha 0.2로 희미하게). 근처에 위치한 노드를 검색 결과로 오인할 수 있음
+
+### 해결 방안
 
 
-## YouTube watch 링크 메타데이터 문제 해결
+| 변경                         | 파일                         | 내용                                             |
+| -------------------------- | -------------------------- | ---------------------------------------------- |
+| 검색 debounce 추가             | `galaxyStore.ts`           | 300ms debounce로 불필요한 중복 요청 방지                  |
+| 요청 취소 (AbortController 패턴) | `galaxyStore.ts`           | 이전 검색 요청이 완료되기 전에 새 요청이 들어오면 이전 결과 무시          |
+| 비검색 노드 숨기기 강화              | `GalaxyCanvas.tsx`         | 검색 중일 때 결과에 없는 캡처를 완전히 숨기거나 alpha를 더 낮춤 (0.05) |
+| 유사도 점수 로깅                  | `search-captures/index.ts` | 시맨틱 결과에 similarity 점수를 로그로 출력하여 디버깅 용이하게       |
 
-### 원인
-YouTube `watch?v=` 페이지는 봇에게 최소한의 HTML만 반환하여 og:title이 " - YouTube", og:image가 빈 값으로 옵니다. 하지만 YouTube는 **oEmbed API**와 **noembed.com** 같은 공개 API를 통해 메타데이터를 제공합니다.
-
-### 해결 방법
-YouTube URL이 감지되면 **YouTube oEmbed API** (`https://www.youtube.com/oembed?url=...&format=json`)를 사용하여 제목과 썸네일을 가져옵니다. oEmbed는 JS 렌더링 없이 정확한 데이터를 반환합니다.
-
-- 썸네일: video ID에서 `https://i.ytimg.com/vi/{VIDEO_ID}/hqdefault.jpg` 직접 생성 (oEmbed 썸네일보다 고화질)
-
-### 파일 변경
-
-| 파일 | 작업 |
-|------|------|
-| `supabase/functions/fetch-url-metadata/index.ts` | YouTube URL 감지 시 oEmbed API 우선 사용하는 분기 추가 |
 
 ### 구현 상세
 
-`fetch-url-metadata/index.ts`에서:
+**1. `galaxyStore.ts` — 검색 race condition 해결**
 
-1. URL이 YouTube 도메인(`youtube.com/watch`, `youtu.be/`, `youtube.com/shorts/`)인지 확인
-2. YouTube URL이면 oEmbed API 호출: `https://www.youtube.com/oembed?url=${url}&format=json`
-3. 응답에서 `title`, `thumbnail_url` 추출
-4. 썸네일은 video ID 기반 고화질 URL로 대체: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-5. YouTube가 아닌 URL은 기존 HTML 파싱 로직 유지
+- `searchRequestId` 카운터를 추가하여, 응답이 돌아왔을 때 최신 요청인지 확인
+- 이전 요청의 결과는 버림
 
-```text
-요청 URL
-  → YouTube URL인가?
-    → Yes: oEmbed API 호출 → title, thumbnail 반환
-    → No: 기존 HTML fetch + 메타태그 파싱
-```
+**2. `GalaxyCanvas.tsx` — 비결과 노드 시각적 구분 강화**  
 
+- 검색 중일 때 결과에 포함되지 않은 캡처 노드의 alpha를 0.2 → 0.05로 낮추거나, 아예 렌더링하지 않음
+- 검색 결과 노드에 더 뚜렷한 시각적 표시 (테두리 링 등) 추가
+
+3. 기존에 있는 캡처들에게 일괄적으로 embedding 생성
