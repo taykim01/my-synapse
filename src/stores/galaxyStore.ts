@@ -300,7 +300,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
     // Check similarity and potentially create DetailedKeyword (async, non-blocking)
     supabase.functions.invoke("check-capture-similarity", {
-      body: { capture_id: insertedCapture.id, node_id: targetId, threshold: 0.3 },
+      body: { capture_id: insertedCapture.id, node_id: targetId, threshold: SIMILARITY_THRESHOLD },
     }).then(({ data: simResult, error: simError }) => {
       if (simError || !simResult?.created) return;
       const dk = simResult.detailed_keyword;
