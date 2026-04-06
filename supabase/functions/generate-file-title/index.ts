@@ -57,8 +57,14 @@ Deno.serve(async (req) => {
         },
       ];
     } else {
-      // For binary files (PDF, images, etc.), encode as base64 and send as inline_data
-      const base64 = btoa(String.fromCharCode(...truncated));
+      // For binary files — chunk-safe base64 encoding (avoids stack overflow with spread)
+      let binaryStr = "";
+      const chunkSize = 8192;
+      for (let i = 0; i < truncated.length; i += chunkSize) {
+        const chunk = truncated.subarray(i, i + chunkSize);
+        binaryStr += String.fromCharCode(...chunk);
+      }
+      const base64 = btoa(binaryStr);
 
       // Determine if the model can handle this mime type
       const supportedMimes = [
