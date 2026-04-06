@@ -1,39 +1,34 @@
-## "인공지능" 검색 시 "주코프" 캡처가 표시되는 문제 분석 및 해결
 
-### 원인 분석
+## 캡처 유사도 기반 DetailedKeyword 자동 생성
 
-데이터를 확인한 결과:
+### 1. DB 마이그레이션 — `nodes` 테이블 확장
 
-- **"주코프" 캡처**는 "역사" 키워드 노드에 연결되어 있고, 임베딩도 없음 (NULL)
-- DB의 텍스트 검색(`search_captures` RPC)은 "인공지능"으로 검색 시 정확히 1건만 반환 ("인공지능의 미래와 윤리적 과제")
-- 시맨틱 검색도 임베딩이 없는 캡처는 매칭 불가
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| `type` | `text` (default `'keyword'`) | `keyword` 또는 `detailed_keyword` |
+| `parent_id` | `uuid` (nullable, FK → nodes.id) | 상위 노드 참조 (계층 구조) |
 
-**가장 가능성 높은 원인 2가지:**
+- 기존 노드는 모두 `type = 'keyword'`로 유지
+- DetailedKeyword는 `parent_id`로 상위 Keyword 또는 상위 DetailedKeyword를 참조
 
-1. **검색 Race Condition**: `handleSearch`가 타이핑할 때마다 호출되는데, 서버 응답이 순서 없이 도착하면 이전 쿼리의 결과가 최신 결과를 덮어쓸 수 있음
-2. **캔버스 시각적 혼동**: `showCaptures`가 true일 때 모든 캡처가 화면에 표시됨 (검색 결과가 아닌 캡처는 alpha 0.2로 희미하게). 근처에 위치한 노드를 검색 결과로 오인할 수 있음
+### 2. Edge Function — `check-capture-similarity`
 
-### 해결 방안
+캡처 추가 후 호출되어:
+1. 새 캡처가 연결된 노드(Keyword/DetailedKeyword)의 모든 캡처 임베딩을 조회
+2. 새 캡처와 기존 캡처 간 코사인 유사도 계산
+3. 유사도가 **μ = 0.3** 이하인 쌍이 발견되면:
+   - AI에게 두 캡처의 내용을 주고, 저유사도 캡처를 위한 새 DetailedKeyword 이름을 생성
+   - `nodes` 테이블에 `type = 'detailed_keyword'`, `parent_id = 현재 노드 ID`로 새 노드 삽입
+   - 저유사도 캡처의 `connected_to`를 새 DetailedKeyword로 업데이트
+4. 결과 반환: 새로 생성된 DetailedKeyword 정보
 
+### 3. 프론트엔드 — `galaxyStore.ts` + `GalaxyCanvas.tsx`
 
-| 변경                         | 파일                         | 내용                                             |
-| -------------------------- | -------------------------- | ---------------------------------------------- |
-| 검색 debounce 추가             | `galaxyStore.ts`           | 300ms debounce로 불필요한 중복 요청 방지                  |
-| 요청 취소 (AbortController 패턴) | `galaxyStore.ts`           | 이전 검색 요청이 완료되기 전에 새 요청이 들어오면 이전 결과 무시          |
-| 비검색 노드 숨기기 강화              | `GalaxyCanvas.tsx`         | 검색 중일 때 결과에 없는 캡처를 완전히 숨기거나 alpha를 더 낮춤 (0.05) |
-| 유사도 점수 로깅                  | `search-captures/index.ts` | 시맨틱 결과에 similarity 점수를 로그로 출력하여 디버깅 용이하게       |
+- `addCapture` 후 `check-capture-similarity` 호출
+- 새 DetailedKeyword가 생성되면 그래프에 노드/링크 추가
+- `initFromDB`에서 `parent_id`와 `type`을 활용하여 계층 구조 빌드
 
+### 유사도 임계값 (μ)
 
-### 구현 상세
-
-**1. `galaxyStore.ts` — 검색 race condition 해결**
-
-- `searchRequestId` 카운터를 추가하여, 응답이 돌아왔을 때 최신 요청인지 확인
-- 이전 요청의 결과는 버림
-
-**2. `GalaxyCanvas.tsx` — 비결과 노드 시각적 구분 강화**  
-
-- 검색 중일 때 결과에 포함되지 않은 캡처 노드의 alpha를 0.2 → 0.05로 낮추거나, 아예 렌더링하지 않음
-- 검색 결과 노드에 더 뚜렷한 시각적 표시 (테두리 링 등) 추가
-
-3. 기존에 있는 캡처들에게 일괄적으로 embedding 생성
+- 기본값: **0.3** (필요 시 조정 가능)
+- 같은 노드에 연결된 캡처들 중 새 캡처와의 유사도가 이 값 이하이면 분리 대상
