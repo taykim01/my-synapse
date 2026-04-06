@@ -25,95 +25,6 @@ const NODE_COLORS = {
   capture:          { core: '#10b981', glow: 'rgba(16, 185, 129, 0.4)' },
 } as const;
 
-// Source service brand colors
-const SOURCE_COLORS: Record<string, string> = {
-  'youtube.com': '#FF0000',
-  'youtu.be': '#FF0000',
-  'github.com': '#8B5CF6',
-  'twitter.com': '#1DA1F2',
-  'x.com': '#000000',
-  'instagram.com': '#E4405F',
-  'facebook.com': '#1877F2',
-  'reddit.com': '#FF4500',
-  'medium.com': '#000000',
-  'notion.so': '#000000',
-  'figma.com': '#A259FF',
-  'dribbble.com': '#EA4C89',
-  'behance.net': '#1769FF',
-  'stackoverflow.com': '#F48024',
-  'linkedin.com': '#0A66C2',
-  'tistory.com': '#E95420',
-  'naver.com': '#03C75A',
-  'velog.io': '#20C997',
-  'brunch.co.kr': '#333333',
-};
-
-function getSourceDomain(source?: string, contentUrl?: string): string | null {
-  const url = source || contentUrl;
-  if (!url) return null;
-  try {
-    const hostname = new URL(url).hostname.replace(/^www\./, '');
-    return hostname;
-  } catch { return null; }
-}
-
-function getSourceColor(source?: string, contentUrl?: string): string | null {
-  const domain = getSourceDomain(source, contentUrl);
-  if (!domain) return null;
-  for (const [key, color] of Object.entries(SOURCE_COLORS)) {
-    if (domain.includes(key)) return color;
-  }
-  // Generate a consistent color for unknown domains
-  let hash = 0;
-  for (let i = 0; i < domain.length; i++) hash = domain.charCodeAt(i) + ((hash << 5) - hash);
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 70%, 55%)`;
-}
-
-// Image cache for capture thumbnails
-const imageCache = new Map<string, HTMLImageElement | 'loading' | 'failed'>();
-
-function getImageUrl(node: GraphNode): string | null {
-  const domain = getSourceDomain(node.source, node.content_url);
-  if (!domain) return node.content_url || null;
-
-  // YouTube thumbnail
-  if (domain.includes('youtube.com') || domain.includes('youtu.be')) {
-    const url = node.source || node.content_url || '';
-    let videoId: string | null = null;
-    try {
-      const u = new URL(url);
-      videoId = u.searchParams.get('v') || u.pathname.split('/').pop() || null;
-    } catch { /* ignore */ }
-    if (videoId) return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
-  }
-
-  // For LINK type: use Google favicon as fallback
-  if (node.content_type === 'LINK' && (node.source || node.content_url)) {
-    return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-  }
-
-  // IMAGE type: use content_url directly
-  if (node.content_type === 'IMAGE' && node.content_url) {
-    return node.content_url;
-  }
-
-  return null;
-}
-
-function loadCachedImage(url: string): HTMLImageElement | null {
-  const cached = imageCache.get(url);
-  if (cached === 'loading' || cached === 'failed') return null;
-  if (cached) return cached;
-  imageCache.set(url, 'loading');
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => imageCache.set(url, img);
-  img.onerror = () => imageCache.set(url, 'failed');
-  img.src = url;
-  return null;
-}
-
 export function GalaxyCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const graphRef = useRef({
@@ -448,20 +359,22 @@ export function GalaxyCanvas() {
       const searchHighlightNodes = new Set(searchResults.map(r => r.id));
 
       // ===== NODES =====
-      const showCaptureDetail = zoom > 1.8; // Show image + title at high zoom
-      const captureDetailAlpha = showCaptureDetail ? Math.min(1, (zoom - 1.8) / 0.4) : 0;
-
       nodes.forEach(node => {
         if (node.type === 'capture' && !showCaptures && !(searchQuery && searchHighlightNodes.has(node.id))) return;
         if (node.type === 'detailed_keyword' && !showDetailed) return;
 
         const colors = NODE_COLORS[node.type as keyof typeof NODE_COLORS] || NODE_COLORS.capture;
 
+        // Glow
         let radius = 5;
         if (node.type === 'center') radius = 12;
         else if (node.type === 'keyword') radius = 8;
         else if (node.type === 'detailed_keyword') radius = 6;
         else radius = 4;
+
+        // Core (flat, no glow)
+        ctx.beginPath();
+        ctx.fillStyle = colors.core;
 
         // Apply LOD fade
         let nodeAlpha = 1;
@@ -475,74 +388,6 @@ export function GalaxyCanvas() {
           nodeAlpha *= 0.05;
         }
 
-        // ===== CAPTURE NODE with source color border =====
-        if (node.type === 'capture') {
-          const srcColor = getSourceColor(node.source, node.content_url);
-          const borderColor = srcColor || colors.core;
-
-          // Draw colored border ring
-          ctx.globalAlpha = nodeAlpha;
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, radius + 1.5, 0, Math.PI * 2);
-          ctx.strokeStyle = borderColor;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-          // Core dot
-          ctx.beginPath();
-          ctx.fillStyle = colors.core;
-          ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-          ctx.fill();
-
-          // At high zoom: show image + title
-          if (showCaptureDetail && nodeAlpha > 0.1) {
-            const detailAlpha = nodeAlpha * captureDetailAlpha;
-            const imgUrl = getImageUrl(node);
-            const imgSize = 24;
-            const imgY = node.y - radius - imgSize - 4;
-
-            if (imgUrl) {
-              const img = loadCachedImage(imgUrl);
-              if (img) {
-                ctx.globalAlpha = detailAlpha;
-                ctx.save();
-                // Circular clip for image
-                ctx.beginPath();
-                ctx.arc(node.x, imgY + imgSize / 2, imgSize / 2, 0, Math.PI * 2);
-                ctx.closePath();
-                ctx.clip();
-                ctx.drawImage(img, node.x - imgSize / 2, imgY, imgSize, imgSize);
-                ctx.restore();
-
-                // Border around image circle
-                ctx.globalAlpha = detailAlpha;
-                ctx.beginPath();
-                ctx.arc(node.x, imgY + imgSize / 2, imgSize / 2 + 1, 0, Math.PI * 2);
-                ctx.strokeStyle = borderColor;
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-              }
-            }
-
-            // Title below node
-            ctx.globalAlpha = detailAlpha;
-            ctx.font = '9px sans-serif';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-            ctx.textAlign = 'center';
-            const maxTitleLen = 16;
-            const displayTitle = node.title.length > maxTitleLen
-              ? node.title.slice(0, maxTitleLen) + '…'
-              : node.title;
-            ctx.fillText(displayTitle, node.x, node.y + radius + 12);
-          }
-
-          ctx.globalAlpha = 1.0;
-          return; // Done with capture node
-        }
-
-        // ===== NON-CAPTURE NODES =====
-        ctx.beginPath();
-        ctx.fillStyle = colors.core;
         ctx.globalAlpha = nodeAlpha;
         ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
         ctx.fill();
@@ -556,14 +401,16 @@ export function GalaxyCanvas() {
 
         ctx.globalAlpha = 1.0;
 
-        // Labels for non-capture nodes
-        if (nodeAlpha > 0.3 && zoom > 0.4) {
-          ctx.globalAlpha = nodeAlpha;
-          ctx.font = node.type === 'center' ? 'bold 14px sans-serif' : '11px sans-serif';
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-          ctx.textAlign = 'center';
-          ctx.fillText(node.title, node.x, node.y + radius + 15);
-          ctx.globalAlpha = 1.0;
+        // Labels
+        if (node.type !== 'capture' || (searchQuery && searchHighlightNodes.has(node.id))) {
+          if (nodeAlpha > 0.3 && zoom > 0.4) {
+            ctx.globalAlpha = nodeAlpha;
+            ctx.font = node.type === 'center' ? 'bold 14px sans-serif' : '11px sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.textAlign = 'center';
+            ctx.fillText(node.title, node.x, node.y + radius + 15);
+            ctx.globalAlpha = 1.0;
+          }
         }
       });
 
