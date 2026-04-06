@@ -1,5 +1,5 @@
-import { useGalaxyStore } from '@/stores/galaxyStore';
-import { X, ExternalLink, Trash2, Pencil, Check, Loader2 } from 'lucide-react';
+import { useGalaxyStore, type GraphNode } from '@/stores/galaxyStore';
+import { X, ExternalLink, Trash2, Pencil, Check, Loader2, ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
