@@ -572,6 +572,14 @@ export function GalaxyCanvas() {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (isPanning) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isMoved = true;
+        graphRef.current.camera.x = panStartCamX + dx;
+        graphRef.current.camera.y = panStartCamY + dy;
+        return;
+      }
       if (!isDragging || !graphRef.current.draggedNode) return;
       if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) {
         isMoved = true;
@@ -584,6 +592,9 @@ export function GalaxyCanvas() {
     };
 
     const handleMouseUp = () => {
+      if (isPanning && !isMoved) {
+        setSelectedNode(null);
+      }
       if (isDragging && graphRef.current.draggedNode && !isMoved) {
         const clickedType = graphRef.current.draggedNode.type;
         if (clickedType === 'capture' || clickedType === 'keyword') {
@@ -591,6 +602,7 @@ export function GalaxyCanvas() {
         }
       }
       isDragging = false;
+      isPanning = false;
       graphRef.current.draggedNode = null;
     };
 
