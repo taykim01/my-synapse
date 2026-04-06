@@ -57,6 +57,7 @@ interface GalaxyState {
   getConnectedCaptures: (keywordId: string) => GraphNode[];
   deleteCapture: (captureId: string) => Promise<boolean>;
   openCaptureModal: () => void;
+  backfillEmbeddings: () => Promise<{ processed: number; failed: number; total: number } | null>;
 }
 
 function buildGraphFromDB(
