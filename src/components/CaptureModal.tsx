@@ -121,7 +121,7 @@ export function CaptureModal() {
       const publicUrl = urlData.publicUrl;
       setCaptureForm({ content_url: publicUrl });
 
-      // Auto-generate title for images
+      // Auto-generate title for images via AI
       if (contentType === 'IMAGE') {
         setFetchingMeta(true);
         try {
@@ -136,6 +136,12 @@ export function CaptureModal() {
         } finally {
           setFetchingMeta(false);
         }
+      }
+
+      // Auto-generate title for files from filename
+      if (contentType === 'FILE') {
+        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+        setCaptureForm({ title: nameWithoutExt });
       }
     } finally {
       setUploading(false);
