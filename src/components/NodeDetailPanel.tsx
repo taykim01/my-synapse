@@ -212,14 +212,14 @@ export function NodeDetailPanel() {
 
           {/* Description: editable for TEXT type */}
           {displayNode.content_type === 'TEXT' && isEditingDesc ? (
-            <div className="flex-1 overflow-y-auto mb-6">
+            <div className="flex-1 flex flex-col overflow-hidden mb-4">
               <textarea
                 value={editDesc}
                 onChange={e => setEditDesc(e.target.value)}
-                className="w-full min-h-[120px] bg-muted/50 border border-border rounded-xl p-4 text-sm text-foreground focus:outline-none focus:border-primary resize-y"
+                className="w-full flex-1 bg-muted/50 border border-border rounded-xl p-4 text-sm text-foreground focus:outline-none focus:border-primary resize-none"
                 autoFocus
               />
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2 mt-2 shrink-0">
                 <button
                   onClick={handleSaveDesc}
                   disabled={saving}
