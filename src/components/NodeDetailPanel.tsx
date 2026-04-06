@@ -125,16 +125,14 @@ function KeywordCaptureList({ keywordId, onSelectCapture }: { keywordId: string;
   return (
     <div className="flex-1 overflow-y-auto mb-6 space-y-2">
       <h3 className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider">연결된 캡처 목록</h3>
-      {totalCount === 0 ? (
+      {totalCount === 0 && detailedKeywords.length === 0 ? (
         <div className="text-center py-10 bg-muted/50 rounded-xl border border-dashed border-border">
           <p className="text-xs text-muted-foreground">아직 이 영역에 연결된 캡처가 없습니다.</p>
         </div>
       ) : (
         <>
-          {/* Detailed keyword groups */}
           {detailedKeywords.map(dk => {
             const caps = groupedCaptures(dk.id);
-            if (caps.length === 0) return null;
             const isOpen = openGroups.has(dk.id);
             return (
               <div key={dk.id} className="rounded-xl border border-border overflow-hidden">
@@ -149,7 +147,7 @@ function KeywordCaptureList({ keywordId, onSelectCapture }: { keywordId: string;
                   </span>
                   <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
-                {isOpen && (
+                {isOpen && caps.length > 0 && (
                   <div className="p-2 space-y-2">
                     {caps.map(c => (
                       <CaptureItem key={c.id} capture={c} onClick={() => onSelectCapture(c)} />
@@ -160,7 +158,6 @@ function KeywordCaptureList({ keywordId, onSelectCapture }: { keywordId: string;
             );
           })}
 
-          {/* Direct captures (no detailed keyword) */}
           {directCaptures.map(c => (
             <CaptureItem key={c.id} capture={c} onClick={() => onSelectCapture(c)} />
           ))}
@@ -220,10 +217,8 @@ function CenterNodeList({ onSelectNode }: { onSelectNode: (node: GraphNode) => v
             </button>
             {isOpen && (
               <div className="p-2 space-y-2">
-                {/* Detailed keyword sub-groups */}
                 {dks.map(dk => {
                   const dkCaps = getCaptures(dk.id);
-                  if (dkCaps.length === 0) return null;
                   const dkOpen = openGroups.has(dk.id);
                   return (
                     <div key={dk.id} className="rounded-lg border border-border/50 overflow-hidden ml-2">
@@ -238,7 +233,7 @@ function CenterNodeList({ onSelectNode }: { onSelectNode: (node: GraphNode) => v
                         </span>
                         <ChevronDown size={12} className={`text-muted-foreground transition-transform duration-200 ${dkOpen ? 'rotate-180' : ''}`} />
                       </button>
-                      {dkOpen && (
+                      {dkOpen && dkCaps.length > 0 && (
                         <div className="p-1.5 space-y-1.5">
                           {dkCaps.map(c => (
                             <CaptureItem key={c.id} capture={c} onClick={() => onSelectNode(c)} />
