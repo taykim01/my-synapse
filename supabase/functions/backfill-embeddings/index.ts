@@ -41,20 +41,20 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json();
-    if (!query || typeof query !== "string" || query.trim().length === 0) {
-      return new Response(JSON.stringify({ text_results: [], semantic_results: [] }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const authHeader = req.headers.get("Authorization");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
-    // Get user
+    if (!openaiApiKey) {
+      return new Response(JSON.stringify({ error: "OPENAI_API_KEY not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Auth check
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader || "" } },
     });
@@ -68,64 +68,69 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Run text search and embedding generation in parallel
-    const textSearchPromise = adminClient.rpc("search_captures", {
-      search_query: query.trim(),
-      user_id: user.id,
-    });
+    // Find captures without embeddings for this user
+    const { data: captures, error: fetchError } = await adminClient
+      .from("captures")
+      .select("id, title, description, content_url")
+      .eq("creator_id", user.id)
+      .is("embedding", null);
 
-    const embeddingPromise = openaiApiKey
-      ? generateEmbedding(query.trim(), openaiApiKey)
-      : Promise.resolve(null);
-
-    const [{ data: textResults, error: textError }, queryEmbedding] = await Promise.all([
-      textSearchPromise,
-      embeddingPromise,
-    ]);
-
-    if (textError) {
-      console.error("Text search error:", textError);
+    if (fetchError) {
+      throw new Error(`Failed to fetch captures: ${fetchError.message}`);
     }
 
-    // Semantic search if embedding was generated
-    let semanticResults: unknown[] = [];
-    if (queryEmbedding) {
-      console.log("Query embedding generated, length:", queryEmbedding.length);
-      try {
-        const embeddingStr = `[${queryEmbedding.join(",")}]`;
-        const { data: matchData, error: matchError } = await adminClient.rpc("match_captures", {
-          query_embedding: embeddingStr,
-          user_id: user.id,
-          match_threshold: 0.2,
-          match_count: 10,
-        });
-        if (matchError) {
-          console.error("Semantic search error:", matchError);
-        } else {
-          console.log("Semantic results count:", matchData?.length || 0);
-          if (matchData) {
-            matchData.forEach((m: { id: string; title: string; similarity: number }) => {
-              console.log(`  - [${m.similarity.toFixed(4)}] ${m.title} (${m.id})`);
-            });
+    if (!captures || captures.length === 0) {
+      return new Response(JSON.stringify({ message: "No captures need embeddings", processed: 0 }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    console.log(`Found ${captures.length} captures without embeddings`);
+
+    let processed = 0;
+    let failed = 0;
+
+    // Process in batches of 5 to avoid rate limits
+    for (let i = 0; i < captures.length; i += 5) {
+      const batch = captures.slice(i, i + 5);
+      const results = await Promise.all(
+        batch.map(async (capture) => {
+          const text = [capture.title, capture.description, capture.content_url]
+            .filter(Boolean)
+            .join(" ");
+
+          const embedding = await generateEmbedding(text, openaiApiKey);
+          if (!embedding) {
+            failed++;
+            return null;
           }
-          semanticResults = matchData || [];
-        }
-      } catch (e) {
-        console.error("Semantic search error:", e);
-      }
+
+          const { error: updateError } = await adminClient
+            .from("captures")
+            .update({ embedding: JSON.stringify(embedding) })
+            .eq("id", capture.id);
+
+          if (updateError) {
+            console.error(`Failed to update capture ${capture.id}:`, updateError);
+            failed++;
+            return null;
+          }
+
+          processed++;
+          console.log(`Embedded: ${capture.title} (${capture.id})`);
+          return capture.id;
+        })
+      );
     }
+
+    console.log(`Backfill complete: ${processed} processed, ${failed} failed`);
 
     return new Response(
-      JSON.stringify({
-        text_results: textResults || [],
-        semantic_results: semanticResults,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ processed, failed, total: captures.length }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
-    console.error("search-captures error:", e);
+    console.error("backfill-embeddings error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
       {
