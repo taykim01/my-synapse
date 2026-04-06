@@ -431,4 +431,20 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     }));
     return true;
   },
+
+  backfillEmbeddings: async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("backfill-embeddings", {
+        body: {},
+      });
+      if (error) {
+        console.error("Backfill error:", error);
+        return null;
+      }
+      return data as { processed: number; failed: number; total: number };
+    } catch (e) {
+      console.error("Backfill error:", e);
+      return null;
+    }
+  },
 }));
