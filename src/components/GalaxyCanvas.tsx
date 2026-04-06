@@ -31,7 +31,7 @@ export function GalaxyCanvas() {
     draggedNode: null as GraphNode | null,
     width: 0,
     height: 0,
-    camera: { x: 0, y: 0, zoom: 1, targetX: 0 },
+    camera: { x: 0, y: 0, panX: 0, panY: 0, zoom: 1, targetX: 0 },
   });
   const birthsRef = useRef<StarBirth[]>([]);
   const nebulaeRef = useRef<NebulaPatch[]>([]);
@@ -239,7 +239,8 @@ export function GalaxyCanvas() {
     const render = () => {
       const { camera, width, height } = graphRef.current;
       const now = performance.now();
-      camera.x += (camera.targetX - camera.x) * 0.08;
+      camera.x += (camera.targetX + camera.panX - camera.x) * 0.08;
+      camera.y += (camera.panY - camera.y) * 0.08;
 
       // Deep background with motion blur
       ctx.fillStyle = 'rgba(5, 5, 10, 0.6)';
@@ -514,8 +515,11 @@ export function GalaxyCanvas() {
     if (!canvas) return;
 
     let isDragging = false;
+    let isPanning = false;
     let startX = 0;
     let startY = 0;
+    let panStartCamX = 0;
+    let panStartCamY = 0;
     let isMoved = false;
     let lastPinchDist = 0;
     let isPinching = false;
@@ -562,11 +566,21 @@ export function GalaxyCanvas() {
       }
 
       if (!nodeClicked) {
-        setSelectedNode(null);
+        isPanning = true;
+        panStartCamX = graphRef.current.camera.panX;
+        panStartCamY = graphRef.current.camera.panY;
       }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (isPanning) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isMoved = true;
+        graphRef.current.camera.panX = panStartCamX + dx;
+        graphRef.current.camera.panY = panStartCamY + dy;
+        return;
+      }
       if (!isDragging || !graphRef.current.draggedNode) return;
       if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) {
         isMoved = true;
@@ -579,6 +593,9 @@ export function GalaxyCanvas() {
     };
 
     const handleMouseUp = () => {
+      if (isPanning && !isMoved) {
+        setSelectedNode(null);
+      }
       if (isDragging && graphRef.current.draggedNode && !isMoved) {
         const clickedType = graphRef.current.draggedNode.type;
         if (clickedType === 'capture' || clickedType === 'keyword') {
@@ -586,6 +603,7 @@ export function GalaxyCanvas() {
         }
       }
       isDragging = false;
+      isPanning = false;
       graphRef.current.draggedNode = null;
     };
 
@@ -623,7 +641,9 @@ export function GalaxyCanvas() {
           }
         }
         if (!nodeClicked) {
-          setSelectedNode(null);
+          isPanning = true;
+          panStartCamX = graphRef.current.camera.panX;
+          panStartCamY = graphRef.current.camera.panY;
         }
       }
     };
@@ -636,6 +656,15 @@ export function GalaxyCanvas() {
         const cam = graphRef.current.camera;
         cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * scale));
         lastPinchDist = newDist;
+        return;
+      }
+      if (isPanning && e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isMoved = true;
+        graphRef.current.camera.panX = panStartCamX + dx;
+        graphRef.current.camera.panY = panStartCamY + dy;
         return;
       }
       if (isDragging && graphRef.current.draggedNode && e.touches.length === 1) {
@@ -656,6 +685,9 @@ export function GalaxyCanvas() {
         if (e.touches.length < 2) isPinching = false;
         return;
       }
+      if (isPanning && !isMoved) {
+        setSelectedNode(null);
+      }
       if (isDragging && graphRef.current.draggedNode && !isMoved) {
         const clickedType = graphRef.current.draggedNode.type;
         if (clickedType === 'capture' || clickedType === 'keyword') {
@@ -663,6 +695,7 @@ export function GalaxyCanvas() {
         }
       }
       isDragging = false;
+      isPanning = false;
       graphRef.current.draggedNode = null;
     };
 
