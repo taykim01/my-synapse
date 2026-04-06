@@ -16,6 +16,7 @@ export interface GraphNode {
   source?: string;
   tags?: string[];
   connected_to?: string;
+  similarity?: number; // semantic similarity score
   x: number;
   y: number;
   vx: number;
@@ -58,6 +59,7 @@ interface GalaxyState {
   deleteCapture: (captureId: string) => Promise<boolean>;
   openCaptureModal: () => void;
   backfillEmbeddings: () => Promise<{ processed: number; failed: number; total: number } | null>;
+  updateCapture: (captureId: string, title: string, description?: string) => Promise<boolean>;
 }
 
 function buildGraphFromDB(
