@@ -449,7 +449,7 @@ export function GalaxyCanvas() {
         // Core
         ctx.beginPath();
         ctx.fillStyle = colors.core;
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 5;
         ctx.shadowColor = colors.core;
 
         // Apply LOD fade
