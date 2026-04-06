@@ -577,8 +577,8 @@ export function GalaxyCanvas() {
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isMoved = true;
-        graphRef.current.camera.x = panStartCamX + dx;
-        graphRef.current.camera.y = panStartCamY + dy;
+        graphRef.current.camera.panX = panStartCamX + dx;
+        graphRef.current.camera.panY = panStartCamY + dy;
         return;
       }
       if (!isDragging || !graphRef.current.draggedNode) return;
