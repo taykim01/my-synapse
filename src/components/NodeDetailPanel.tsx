@@ -385,7 +385,7 @@ export function NodeDetailPanel() {
         </>
       )}
 
-      {displayNode?.type === 'keyword' && (
+      {(displayNode?.type === 'keyword' || displayNode?.type === 'detailed_keyword') && (
         <KeywordCaptureList keywordId={displayNode.id} onSelectCapture={setSelectedNode} />
       )}
     </div>
