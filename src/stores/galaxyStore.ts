@@ -358,13 +358,13 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
         }
       }
 
-      // Add semantic matches
+      // Add semantic matches with similarity scores
       for (const r of semantic_results) {
         if (!seen.has(r.id)) {
           seen.add(r.id);
           const existing = existingNodes.find((n) => n.id === r.id);
           if (existing) {
-            merged.push(existing);
+            merged.push({ ...existing, similarity: r.similarity });
           } else {
             merged.push({
               id: r.id,
@@ -373,6 +373,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
               title: r.title,
               description: r.description || undefined,
               content_type: r.content_type,
+              similarity: r.similarity,
               x: 0,
               y: 0,
               vx: 0,
