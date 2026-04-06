@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
-import { Search, Plus, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, Plus, LogOut, Zap } from 'lucide-react';
 import { GalaxyCanvas } from '@/components/GalaxyCanvas';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { CaptureModal } from '@/components/CaptureModal';
 import { NodeDetailPanel } from '@/components/NodeDetailPanel';
 import { useGalaxyStore } from '@/stores/galaxyStore';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const Index = () => {
   const gameState = useGalaxyStore(s => s.gameState);
@@ -14,9 +15,22 @@ const Index = () => {
   const handleSearch = useGalaxyStore(s => s.handleSearch);
   const isAddingCapture = useGalaxyStore(s => s.isAddingCapture);
   const openCaptureModal = useGalaxyStore(s => s.openCaptureModal);
+  const backfillEmbeddings = useGalaxyStore(s => s.backfillEmbeddings);
   const nodes = useGalaxyStore(s => s.nodes);
   const initFromDB = useGalaxyStore(s => s.initFromDB);
   const { signOut, user } = useAuth();
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
+  const handleBackfill = async () => {
+    setIsBackfilling(true);
+    const result = await backfillEmbeddings();
+    setIsBackfilling(false);
+    if (result) {
+      toast.success(`임베딩 생성 완료: ${result.processed}개 처리, ${result.failed}개 실패`);
+    } else {
+      toast.error('임베딩 생성 중 오류가 발생했습니다.');
+    }
+  };
 
   useEffect(() => {
     if (user) initFromDB();
@@ -51,6 +65,14 @@ const Index = () => {
             title="로그아웃"
           >
             <LogOut size={18} />
+          </button>
+          <button
+            onClick={handleBackfill}
+            disabled={isBackfilling}
+            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            title="기존 캡처에 임베딩 일괄 생성"
+          >
+            <Zap size={18} className={isBackfilling ? 'animate-pulse' : ''} />
           </button>
         </div>
 

@@ -462,7 +462,7 @@ export function GalaxyCanvas() {
           ctx.shadowColor = '#10b981';
           nodeAlpha = 1;
         } else if (searchQuery) {
-          nodeAlpha *= 0.2;
+          nodeAlpha *= 0.05;
         }
 
         ctx.globalAlpha = nodeAlpha;

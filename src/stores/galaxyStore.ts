@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const randomRange = (min: number, max: number) => Math.random() * (max - min) + min;
+let _searchRequestId = 0;
 
 export interface GraphNode {
   id: string;
@@ -56,6 +57,7 @@ interface GalaxyState {
   getConnectedCaptures: (keywordId: string) => GraphNode[];
   deleteCapture: (captureId: string) => Promise<boolean>;
   openCaptureModal: () => void;
+  backfillEmbeddings: () => Promise<{ processed: number; failed: number; total: number } | null>;
 }
 
 function buildGraphFromDB(
@@ -297,6 +299,9 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       return;
     }
 
+    // Increment request ID to track latest request
+    const requestId = ++_searchRequestId;
+
     // Immediate local filtering for instant feedback
     const localResults = get().nodes.filter(
       (n) =>
@@ -311,6 +316,9 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       const { data, error } = await supabase.functions.invoke("search-captures", {
         body: { query: q },
       });
+
+      // Check if this is still the latest request
+      if (_searchRequestId !== requestId) return; // Stale response, discard
 
       if (error || !data) return;
 
@@ -422,5 +430,21 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       selectedNode: state.selectedNode?.id === captureId ? null : state.selectedNode,
     }));
     return true;
+  },
+
+  backfillEmbeddings: async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("backfill-embeddings", {
+        body: {},
+      });
+      if (error) {
+        console.error("Backfill error:", error);
+        return null;
+      }
+      return data as { processed: number; failed: number; total: number };
+    } catch (e) {
+      console.error("Backfill error:", e);
+      return null;
+    }
   },
 }));
