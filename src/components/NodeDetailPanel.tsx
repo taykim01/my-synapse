@@ -1,5 +1,5 @@
 import { useGalaxyStore } from '@/stores/galaxyStore';
-import { X, ExternalLink, Trash2 } from 'lucide-react';
+import { X, ExternalLink, Trash2, Pencil, Check, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -86,9 +86,49 @@ export function NodeDetailPanel() {
   const setSelectedNode = useGalaxyStore(s => s.setSelectedNode);
   const getConnectedCaptures = useGalaxyStore(s => s.getConnectedCaptures);
   const deleteCapture = useGalaxyStore(s => s.deleteCapture);
+  const updateCapture = useGalaxyStore(s => s.updateCapture);
   const [deleting, setDeleting] = useState(false);
 
+  // Editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const displayNode = activeNode;
+
+  // Reset editing state when node changes
+  useEffect(() => {
+    setIsEditingTitle(false);
+    setIsEditingDesc(false);
+  }, [displayNode?.id]);
+
+  const handleSaveTitle = async () => {
+    if (!displayNode?.dbId || !editTitle.trim()) return;
+    setSaving(true);
+    const ok = await updateCapture(displayNode.dbId, editTitle.trim(), displayNode.description);
+    setSaving(false);
+    if (ok) {
+      toast({ title: '제목이 수정되었습니다.' });
+      setIsEditingTitle(false);
+    } else {
+      toast({ title: '수정에 실패했습니다.', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveDesc = async () => {
+    if (!displayNode?.dbId) return;
+    setSaving(true);
+    const ok = await updateCapture(displayNode.dbId, displayNode.title, editDesc);
+    setSaving(false);
+    if (ok) {
+      toast({ title: '내용이 수정되었습니다.' });
+      setIsEditingDesc(false);
+    } else {
+      toast({ title: '수정에 실패했습니다.', variant: 'destructive' });
+    }
+  };
 
   const handleDelete = async () => {
     if (!displayNode?.dbId) return;
@@ -110,7 +150,33 @@ export function NodeDetailPanel() {
       }`}
     >
       <div className="flex justify-between items-start mb-6">
-        <h2 className="text-xl font-display text-foreground pr-4">{displayNode?.title}</h2>
+        {displayNode?.type === 'capture' && isEditingTitle ? (
+          <div className="flex-1 pr-2 flex items-center gap-2">
+            <input
+              value={editTitle}
+              onChange={e => setEditTitle(e.target.value)}
+              className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-1.5 text-lg font-display text-foreground focus:outline-none focus:border-primary"
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && handleSaveTitle()}
+            />
+            <button onClick={handleSaveTitle} disabled={saving} className="text-accent hover:text-accent/80 shrink-0">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 pr-4 flex-1 min-w-0">
+            <h2 className="text-xl font-display text-foreground truncate">{displayNode?.title}</h2>
+            {displayNode?.type === 'capture' && (
+              <button
+                onClick={() => { setEditTitle(displayNode.title); setIsEditingTitle(true); }}
+                className="text-muted-foreground hover:text-foreground shrink-0"
+                title="제목 수정"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+          </div>
+        )}
         <button onClick={() => setSelectedNode(null)} className="text-muted-foreground hover:text-foreground shrink-0">
           <X size={20} />
         </button>
@@ -144,7 +210,60 @@ export function NodeDetailPanel() {
             <LinkPreviewCard url={displayNode.content_url} />
           )}
 
-          {displayNode.description && (
+          {/* Description: editable for TEXT type */}
+          {displayNode.content_type === 'TEXT' && isEditingDesc ? (
+            <div className="flex-1 overflow-y-auto mb-6">
+              <textarea
+                value={editDesc}
+                onChange={e => setEditDesc(e.target.value)}
+                className="w-full min-h-[120px] bg-muted/50 border border-border rounded-xl p-4 text-sm text-foreground focus:outline-none focus:border-primary resize-y"
+                autoFocus
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSaveDesc}
+                  disabled={saving}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-accent-foreground text-xs hover:bg-accent/90 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                  저장
+                </button>
+                <button
+                  onClick={() => setIsEditingDesc(false)}
+                  className="px-3 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          ) : displayNode.description ? (
+            <div className="flex-1 overflow-y-auto mb-6 group/desc relative">
+              <p className="text-muted-foreground text-sm whitespace-pre-wrap leading-relaxed bg-muted/50 p-4 rounded-xl border border-border">
+                {displayNode.description}
+              </p>
+              {displayNode.content_type === 'TEXT' && (
+                <button
+                  onClick={() => { setEditDesc(displayNode.description || ''); setIsEditingDesc(true); }}
+                  className="absolute top-2 right-2 opacity-0 group-hover/desc:opacity-100 text-muted-foreground hover:text-foreground transition-opacity bg-card/80 rounded p-1"
+                  title="내용 수정"
+                >
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
+          ) : displayNode.content_type === 'TEXT' ? (
+            <div className="flex-1 overflow-y-auto mb-6">
+              <button
+                onClick={() => { setEditDesc(''); setIsEditingDesc(true); }}
+                className="w-full text-center py-6 bg-muted/50 rounded-xl border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+              >
+                + 내용 추가
+              </button>
+            </div>
+          ) : null}
+
+          {/* Non-TEXT descriptions (read-only) */}
+          {displayNode.content_type !== 'TEXT' && displayNode.description && (
             <div className="flex-1 overflow-y-auto mb-6">
               <p className="text-muted-foreground text-sm whitespace-pre-wrap leading-relaxed bg-muted/50 p-4 rounded-xl border border-border">
                 {displayNode.description}
