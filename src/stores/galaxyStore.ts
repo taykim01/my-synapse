@@ -450,4 +450,31 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       return null;
     }
   },
+
+  updateCapture: async (captureId: string, title: string, description?: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("update-capture", {
+        body: { capture_id: captureId, title, description },
+      });
+      if (error) {
+        console.error("Update capture error:", error);
+        return false;
+      }
+      set((state) => ({
+        nodes: state.nodes.map((n) =>
+          n.id === captureId ? { ...n, title, description: description ?? n.description } : n
+        ),
+        selectedNode: state.selectedNode?.id === captureId
+          ? { ...state.selectedNode, title, description: description ?? state.selectedNode.description }
+          : state.selectedNode,
+        activeNode: state.activeNode?.id === captureId
+          ? { ...state.activeNode, title, description: description ?? state.activeNode.description }
+          : state.activeNode,
+      }));
+      return true;
+    } catch (e) {
+      console.error("Update capture error:", e);
+      return false;
+    }
+  },
 }));
