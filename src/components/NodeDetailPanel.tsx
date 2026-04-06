@@ -1,5 +1,5 @@
-import { useGalaxyStore } from '@/stores/galaxyStore';
-import { X, ExternalLink, Trash2, Pencil, Check, Loader2 } from 'lucide-react';
+import { useGalaxyStore, type GraphNode } from '@/stores/galaxyStore';
+import { X, ExternalLink, Trash2, Pencil, Check, Loader2, ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -77,6 +77,96 @@ function LinkPreviewCard({ url }: { url: string }) {
         </div>
       </div>
     </a>
+  );
+}
+
+function CaptureItem({ capture, onClick }: { capture: GraphNode; onClick: () => void }) {
+  return (
+    <div
+      className="bg-muted/50 p-4 rounded-xl border border-border hover:bg-muted hover:border-secondary/50 cursor-pointer transition-all group"
+      onClick={onClick}
+    >
+      <h4 className="text-foreground text-sm font-medium group-hover:text-secondary transition-colors">{capture.title}</h4>
+      {capture.description && <p className="text-muted-foreground text-xs mt-1.5 line-clamp-2 leading-relaxed">{capture.description}</p>}
+    </div>
+  );
+}
+
+function KeywordCaptureList({ keywordId, onSelectCapture }: { keywordId: string; onSelectCapture: (node: GraphNode) => void }) {
+  const nodes = useGalaxyStore(s => s.nodes);
+  const links = useGalaxyStore(s => s.links);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+
+  // Find detailed_keywords under this keyword
+  const detailedKeywords = nodes.filter(
+    n => n.type === 'detailed_keyword' && links.some(l => l.source === keywordId && l.target === n.id)
+  );
+
+  // Captures directly connected to keyword (not through a detailed_keyword)
+  const detailedIds = new Set(detailedKeywords.map(dk => dk.id));
+  const directCaptures = nodes.filter(
+    n => n.type === 'capture' && links.some(l => l.source === keywordId && l.target === n.id)
+  );
+
+  // Captures under each detailed_keyword
+  const groupedCaptures = (dkId: string) =>
+    nodes.filter(n => n.type === 'capture' && links.some(l => l.source === dkId && l.target === n.id));
+
+  const toggleGroup = (id: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const totalCount = directCaptures.length + detailedKeywords.reduce((sum, dk) => sum + groupedCaptures(dk.id).length, 0);
+
+  return (
+    <div className="flex-1 overflow-y-auto mb-6 space-y-2">
+      <h3 className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider">연결된 캡처 목록</h3>
+      {totalCount === 0 ? (
+        <div className="text-center py-10 bg-muted/50 rounded-xl border border-dashed border-border">
+          <p className="text-xs text-muted-foreground">아직 이 영역에 연결된 캡처가 없습니다.</p>
+        </div>
+      ) : (
+        <>
+          {/* Detailed keyword groups */}
+          {detailedKeywords.map(dk => {
+            const caps = groupedCaptures(dk.id);
+            if (caps.length === 0) return null;
+            const isOpen = openGroups.has(dk.id);
+            return (
+              <div key={dk.id} className="rounded-xl border border-border overflow-hidden">
+                <button
+                  onClick={() => toggleGroup(dk.id)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/60 transition-colors text-left"
+                >
+                  <span className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#6366f1] shrink-0" />
+                    {dk.title}
+                    <span className="text-[10px] text-muted-foreground font-normal">({caps.length})</span>
+                  </span>
+                  <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isOpen && (
+                  <div className="p-2 space-y-2">
+                    {caps.map(c => (
+                      <CaptureItem key={c.id} capture={c} onClick={() => onSelectCapture(c)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Direct captures (no detailed keyword) */}
+          {directCaptures.map(c => (
+            <CaptureItem key={c.id} capture={c} onClick={() => onSelectCapture(c)} />
+          ))}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -296,25 +386,7 @@ export function NodeDetailPanel() {
       )}
 
       {displayNode?.type === 'keyword' && (
-        <div className="flex-1 overflow-y-auto mb-6 space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider">연결된 캡처 목록</h3>
-          {getConnectedCaptures(displayNode.id).length > 0 ? (
-            getConnectedCaptures(displayNode.id).map(capture => (
-              <div
-                key={capture.id}
-                className="bg-muted/50 p-4 rounded-xl border border-border hover:bg-muted hover:border-secondary/50 cursor-pointer transition-all group"
-                onClick={() => setSelectedNode(capture)}
-              >
-                <h4 className="text-foreground text-sm font-medium group-hover:text-secondary transition-colors">{capture.title}</h4>
-                {capture.description && <p className="text-muted-foreground text-xs mt-1.5 line-clamp-2 leading-relaxed">{capture.description}</p>}
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-10 bg-muted/50 rounded-xl border border-dashed border-border">
-              <p className="text-xs text-muted-foreground">아직 이 영역에 연결된 캡처가 없습니다.</p>
-            </div>
-          )}
-        </div>
+        <KeywordCaptureList keywordId={displayNode.id} onSelectCapture={setSelectedNode} />
       )}
     </div>
   );
