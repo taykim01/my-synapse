@@ -237,8 +237,8 @@ export function NodeDetailPanel() {
               </div>
             </div>
           ) : displayNode.description ? (
-            <div className="flex-1 overflow-y-auto mb-6 group/desc relative">
-              <p className="text-muted-foreground text-sm whitespace-pre-wrap leading-relaxed bg-muted/50 p-4 rounded-xl border border-border">
+            <div className="flex-1 overflow-y-auto mb-4 group/desc relative">
+              <p className="text-muted-foreground text-sm whitespace-pre-wrap leading-relaxed bg-muted/50 p-4 rounded-xl border border-border h-full">
                 {displayNode.description}
               </p>
               {displayNode.content_type === 'TEXT' && (
@@ -252,10 +252,10 @@ export function NodeDetailPanel() {
               )}
             </div>
           ) : displayNode.content_type === 'TEXT' ? (
-            <div className="flex-1 overflow-y-auto mb-6">
+            <div className="flex-1 mb-4">
               <button
                 onClick={() => { setEditDesc(''); setIsEditingDesc(true); }}
-                className="w-full text-center py-6 bg-muted/50 rounded-xl border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+                className="w-full h-full text-center py-6 bg-muted/50 rounded-xl border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
               >
                 + 내용 추가
               </button>
