@@ -167,15 +167,18 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       return;
     }
 
-    const { data: dbNodes } = await supabase.from("nodes").select("*").eq("creator_id", user.id);
+    const { data: dbNodes } = await supabase.from("nodes").select("id, title, type, parent_id, creator_id, created_at").eq("creator_id", user.id);
     const { data: dbCaptures } = await supabase.from("captures").select("*").eq("creator_id", user.id);
 
-    if (!dbNodes || dbNodes.length === 0) {
+    if (!dbNodes || dbNodes.filter(n => n.type === "keyword" || !n.type).length === 0) {
       set({ gameState: "onboarding" });
       return;
     }
 
-    const { nodes, links } = buildGraphFromDB(dbNodes, dbCaptures || []);
+    const { nodes, links } = buildGraphFromDB(
+      dbNodes.map(n => ({ id: n.id, title: n.title, type: n.type || "keyword", parent_id: n.parent_id })),
+      dbCaptures || [],
+    );
     set({ nodes, links, gameState: "exploring" });
   },
 
