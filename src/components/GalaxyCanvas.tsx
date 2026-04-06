@@ -299,17 +299,17 @@ export function GalaxyCanvas() {
         ctx.fill();
       });
 
-      // Per-node aura glow
+      // Per-node aura glow (minimal)
       nodes.forEach(node => {
-        let auraSize = 50;
-        let color = 'rgba(16, 185, 129, 0.08)';
-        if (node.type === 'center') { auraSize = 180; color = 'rgba(6, 182, 212, 0.06)'; }
-        else if (node.type === 'keyword') { auraSize = 120; color = 'rgba(217, 70, 239, 0.05)'; }
-        else if (node.type === 'detailed_keyword') { auraSize = 80; color = 'rgba(99, 102, 241, 0.05)'; }
+        let auraSize = 15;
+        let color = 'rgba(16, 185, 129, 0.03)';
+        if (node.type === 'center') { auraSize = 40; color = 'rgba(6, 182, 212, 0.03)'; }
+        else if (node.type === 'keyword') { auraSize = 25; color = 'rgba(217, 70, 239, 0.02)'; }
+        else if (node.type === 'detailed_keyword') { auraSize = 20; color = 'rgba(99, 102, 241, 0.02)'; }
 
         const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, auraSize);
-        gradient.addColorStop(0, color.replace(/[\d.]+\)$/, '0.2)'));
-        gradient.addColorStop(0.5, color);
+        gradient.addColorStop(0, color.replace(/[\d.]+\)$/, '0.06)'));
+        gradient.addColorStop(0.6, color);
         gradient.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = gradient;
         ctx.beginPath();
@@ -437,19 +437,19 @@ export function GalaxyCanvas() {
         else if (node.type === 'detailed_keyword') radius = 6;
         else radius = 4;
 
-        const glowGradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, radius * 2.5);
-        glowGradient.addColorStop(0, colors.glow);
+        const glowGradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, radius * 1.6);
+        glowGradient.addColorStop(0, colors.glow.replace(/[\d.]+\)$/, '0.15)'));
         glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
 
         ctx.beginPath();
-        ctx.arc(node.x, node.y, radius * 2.5, 0, Math.PI * 2);
+        ctx.arc(node.x, node.y, radius * 1.6, 0, Math.PI * 2);
         ctx.fillStyle = glowGradient;
         ctx.fill();
 
         // Core
         ctx.beginPath();
         ctx.fillStyle = colors.core;
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 5;
         ctx.shadowColor = colors.core;
 
         // Apply LOD fade
