@@ -401,14 +401,34 @@ export function GalaxyCanvas() {
 
         ctx.globalAlpha = 1.0;
 
-        // Labels
-        if (node.type !== 'capture' || (searchQuery && searchHighlightNodes.has(node.id))) {
+        // Labels for non-capture nodes
+        if (node.type !== 'capture') {
           if (nodeAlpha > 0.3 && zoom > 0.4) {
             ctx.globalAlpha = nodeAlpha;
             ctx.font = node.type === 'center' ? 'bold 14px sans-serif' : '11px sans-serif';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.textAlign = 'center';
             ctx.fillText(node.title, node.x, node.y + radius + 15);
+            ctx.globalAlpha = 1.0;
+          }
+        }
+
+        // Capture labels: show small title, hide when zoom would cause overlap
+        if (node.type === 'capture' && nodeAlpha > 0.3) {
+          // Show capture labels only when zoomed in enough that they won't overlap
+          // At higher zoom, text appears smaller in world-space, so less overlap
+          const showCaptureLabels = zoom > 1.2;
+          const isSearchHighlight = searchQuery && searchHighlightNodes.has(node.id);
+          if (showCaptureLabels || isSearchHighlight) {
+            const capLabelAlpha = isSearchHighlight
+              ? nodeAlpha
+              : Math.min(1, (zoom - 1.2) / 0.3) * nodeAlpha;
+            ctx.globalAlpha = capLabelAlpha * 0.7;
+            ctx.font = '9px sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.textAlign = 'center';
+            const label = node.title.length > 16 ? node.title.slice(0, 15) + '…' : node.title;
+            ctx.fillText(label, node.x, node.y + radius + 12);
             ctx.globalAlpha = 1.0;
           }
         }
