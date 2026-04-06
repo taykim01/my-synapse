@@ -640,7 +640,9 @@ export function GalaxyCanvas() {
           }
         }
         if (!nodeClicked) {
-          setSelectedNode(null);
+          isPanning = true;
+          panStartCamX = graphRef.current.camera.x;
+          panStartCamY = graphRef.current.camera.y;
         }
       }
     };
@@ -653,6 +655,15 @@ export function GalaxyCanvas() {
         const cam = graphRef.current.camera;
         cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * scale));
         lastPinchDist = newDist;
+        return;
+      }
+      if (isPanning && e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - startX;
+        const dy = touch.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isMoved = true;
+        graphRef.current.camera.x = panStartCamX + dx;
+        graphRef.current.camera.y = panStartCamY + dy;
         return;
       }
       if (isDragging && graphRef.current.draggedNode && e.touches.length === 1) {
