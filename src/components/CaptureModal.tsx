@@ -253,9 +253,16 @@ export function CaptureModal() {
             <div className="flex justify-between items-end mb-1">
               <label className="text-xs text-muted-foreground">제목</label>
               {!isText && (
-                <span className="text-[10px] text-synapse-indigo bg-synapse-indigo/10 px-2 py-0.5 rounded">
-                  {isLink ? '링크에서 자동 추출' : 'AI 자동 생성'} · 수정 가능
-                </span>
+                fetchingMeta ? (
+                  <span className="text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                    <Sparkles size={10} />
+                    AI가 제목을 생성 중...
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-synapse-indigo bg-synapse-indigo/10 px-2 py-0.5 rounded">
+                    {isLink ? '링크에서 자동 추출' : 'AI 자동 생성'} · 수정 가능
+                  </span>
+                )
               )}
             </div>
             {isText ? (
