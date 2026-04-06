@@ -251,72 +251,7 @@ export function GalaxyCanvas() {
 
       time++;
 
-      // ===== NEBULA CLOUDS =====
-      ctx.globalCompositeOperation = 'screen';
-
-      const kwNodes = nodes.filter(n => n.type === 'keyword' || n.type === 'detailed_keyword');
-      let nebulaIdx = 0;
-      kwNodes.forEach(kw => {
-        const connectedIds = new Set<string>();
-        links.forEach(l => {
-          if (l.source === kw.id) connectedIds.add(l.target);
-          if (l.target === kw.id) connectedIds.add(l.source);
-        });
-        const captureCount = nodes.filter(n => connectedIds.has(n.id) && n.type === 'capture').length;
-        if (captureCount < 1) return;
-
-        if (nebulaeRef.current[nebulaIdx]) {
-          nebulaeRef.current[nebulaIdx].cx = kw.x;
-          nebulaeRef.current[nebulaIdx].cy = kw.y;
-          nebulaIdx++;
-        }
-        if (captureCount >= 3) {
-          for (let i = 0; i < 2; i++) {
-            if (nebulaeRef.current[nebulaIdx]) {
-              const patch = nebulaeRef.current[nebulaIdx];
-              const offsetAngle = patch.angle + time * patch.drift;
-              const offsetDist = nebulaeRef.current[nebulaIdx - (i + 1)]?.radius * 0.4 || 50;
-              patch.cx = kw.x + Math.cos(offsetAngle) * offsetDist;
-              patch.cy = kw.y + Math.sin(offsetAngle) * offsetDist;
-              nebulaIdx++;
-            }
-          }
-        }
-      });
-
-      nebulaeRef.current.forEach(neb => {
-        neb.opacity += (neb.targetOpacity - neb.opacity) * 0.02;
-        if (neb.opacity < 0.001) return;
-
-        const g = ctx.createRadialGradient(neb.cx, neb.cy, 0, neb.cx, neb.cy, neb.radius);
-        g.addColorStop(0, `rgba(${neb.color}, ${neb.opacity * 3})`);
-        g.addColorStop(0.3, `rgba(${neb.color}, ${neb.opacity * 1.5})`);
-        g.addColorStop(0.7, `rgba(${neb.color}, ${neb.opacity * 0.5})`);
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(neb.cx, neb.cy, neb.radius, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // Per-node aura glow (minimal)
-      nodes.forEach(node => {
-        let auraSize = 15;
-        let color = 'rgba(16, 185, 129, 0.03)';
-        if (node.type === 'center') { auraSize = 40; color = 'rgba(6, 182, 212, 0.03)'; }
-        else if (node.type === 'keyword') { auraSize = 25; color = 'rgba(217, 70, 239, 0.02)'; }
-        else if (node.type === 'detailed_keyword') { auraSize = 20; color = 'rgba(99, 102, 241, 0.02)'; }
-
-        const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, auraSize);
-        gradient.addColorStop(0, color.replace(/[\d.]+\)$/, '0.06)'));
-        gradient.addColorStop(0.6, color);
-        gradient.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, auraSize, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.globalCompositeOperation = 'source-over';
+      // (nebula clouds and per-node aura removed for flat style)
 
       // ===== STAR BIRTH EXPLOSIONS =====
       birthsRef.current = birthsRef.current.filter(b => now - b.birth < b.duration);
