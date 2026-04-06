@@ -567,8 +567,8 @@ export function GalaxyCanvas() {
 
       if (!nodeClicked) {
         isPanning = true;
-        panStartCamX = graphRef.current.camera.x;
-        panStartCamY = graphRef.current.camera.y;
+        panStartCamX = graphRef.current.camera.panX;
+        panStartCamY = graphRef.current.camera.panY;
       }
     };
 
