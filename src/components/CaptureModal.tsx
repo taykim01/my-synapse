@@ -138,10 +138,21 @@ export function CaptureModal() {
         }
       }
 
-      // Auto-generate title for files from filename
+      // Auto-generate title for files via AI
       if (contentType === 'FILE') {
-        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
-        setCaptureForm({ title: nameWithoutExt });
+        setFetchingMeta(true);
+        try {
+          const { data, error: aiError } = await supabase.functions.invoke('generate-file-title', {
+            body: { file_url: publicUrl, file_name: file.name },
+          });
+          if (!aiError && data?.title) {
+            setCaptureForm({ title: data.title });
+          }
+        } catch (err) {
+          console.error('File title generation failed:', err);
+        } finally {
+          setFetchingMeta(false);
+        }
       }
     } finally {
       setUploading(false);
