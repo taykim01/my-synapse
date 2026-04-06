@@ -239,7 +239,8 @@ export function GalaxyCanvas() {
     const render = () => {
       const { camera, width, height } = graphRef.current;
       const now = performance.now();
-      camera.x += (camera.targetX - camera.x) * 0.08;
+      camera.x += (camera.targetX + camera.panX - camera.x) * 0.08;
+      camera.y += (camera.panY - camera.y) * 0.08;
 
       // Deep background with motion blur
       ctx.fillStyle = 'rgba(5, 5, 10, 0.6)';
