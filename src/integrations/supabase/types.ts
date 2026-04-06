@@ -66,21 +66,35 @@ export type Database = {
           created_at: string
           creator_id: string
           id: string
+          parent_id: string | null
           title: string
+          type: string
         }
         Insert: {
           created_at?: string
           creator_id: string
           id?: string
+          parent_id?: string | null
           title: string
+          type?: string
         }
         Update: {
           created_at?: string
           creator_id?: string
           id?: string
+          parent_id?: string | null
           title?: string
+          type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "nodes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

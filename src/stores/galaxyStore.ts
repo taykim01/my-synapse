@@ -63,7 +63,7 @@ interface GalaxyState {
 }
 
 function buildGraphFromDB(
-  dbNodes: { id: string; title: string }[],
+  dbNodes: { id: string; title: string; type: string; parent_id: string | null }[],
   dbCaptures: {
     id: string;
     title: string;
@@ -80,8 +80,12 @@ function buildGraphFromDB(
   const centerId = "center";
   nodes.push({ id: centerId, type: "center", title: "나", x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0 });
 
-  dbNodes.forEach((n, i) => {
-    const angle = (i / dbNodes.length) * Math.PI * 2;
+  // Separate keywords and detailed_keywords
+  const keywords = dbNodes.filter(n => n.type === "keyword" || !n.type);
+  const detailedKeywords = dbNodes.filter(n => n.type === "detailed_keyword");
+
+  keywords.forEach((n, i) => {
+    const angle = (i / keywords.length) * Math.PI * 2;
     nodes.push({
       id: n.id,
       dbId: n.id,
@@ -97,8 +101,28 @@ function buildGraphFromDB(
     links.push({ source: centerId, target: n.id });
   });
 
+  // Add detailed_keywords linked to their parent
+  detailedKeywords.forEach((n) => {
+    const parentId = n.parent_id || centerId;
+    const parent = nodes.find((nd) => nd.id === parentId);
+    nodes.push({
+      id: n.id,
+      dbId: n.id,
+      type: "detailed_keyword",
+      title: n.title,
+      connected_to: n.parent_id || undefined,
+      x: (parent?.x || 0) + randomRange(-40, 40),
+      y: (parent?.y || 0) + randomRange(-40, 40),
+      vx: 0,
+      vy: 0,
+      fx: 0,
+      fy: 0,
+    });
+    links.push({ source: parentId, target: n.id });
+  });
+
   dbCaptures.forEach((c) => {
-    const parentId = c.connected_to || (dbNodes.length > 0 ? dbNodes[0].id : centerId);
+    const parentId = c.connected_to || (keywords.length > 0 ? keywords[0].id : centerId);
     const parent = nodes.find((n) => n.id === parentId);
     nodes.push({
       id: c.id,
@@ -143,15 +167,18 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       return;
     }
 
-    const { data: dbNodes } = await supabase.from("nodes").select("*").eq("creator_id", user.id);
+    const { data: dbNodes } = await supabase.from("nodes").select("id, title, type, parent_id, creator_id, created_at").eq("creator_id", user.id);
     const { data: dbCaptures } = await supabase.from("captures").select("*").eq("creator_id", user.id);
 
-    if (!dbNodes || dbNodes.length === 0) {
+    if (!dbNodes || dbNodes.filter(n => n.type === "keyword" || !n.type).length === 0) {
       set({ gameState: "onboarding" });
       return;
     }
 
-    const { nodes, links } = buildGraphFromDB(dbNodes, dbCaptures || []);
+    const { nodes, links } = buildGraphFromDB(
+      dbNodes.map(n => ({ id: n.id, title: n.title, type: n.type || "keyword", parent_id: n.parent_id })),
+      dbCaptures || [],
+    );
     set({ nodes, links, gameState: "exploring" });
   },
 
@@ -172,7 +199,10 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       return;
     }
 
-    const { nodes, links } = buildGraphFromDB(inserted, []);
+    const { nodes, links } = buildGraphFromDB(
+      inserted.map(n => ({ id: n.id, title: n.title, type: (n as any).type || "keyword", parent_id: (n as any).parent_id || null })),
+      [],
+    );
     set({ nodes, links, gameState: "exploring" });
   },
 
@@ -264,6 +294,50 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "" },
       isAddingCapture: false,
     });
+
+    // Check similarity and potentially create DetailedKeyword (async, non-blocking)
+    supabase.functions.invoke("check-capture-similarity", {
+      body: { capture_id: insertedCapture.id, node_id: targetId, threshold: 0.3 },
+    }).then(({ data: simResult, error: simError }) => {
+      if (simError || !simResult?.created) return;
+      const dk = simResult.detailed_keyword;
+      const movedIds: string[] = simResult.moved_capture_ids || [];
+
+      set((state) => {
+        const updatedNodes = [...state.nodes];
+        const updatedLinks = [...state.links];
+
+        // Add the new DetailedKeyword node
+        const parentGraphNode = updatedNodes.find(n => n.id === dk.parent_id);
+        updatedNodes.push({
+          id: dk.id,
+          dbId: dk.id,
+          type: "detailed_keyword",
+          title: dk.title,
+          connected_to: dk.parent_id,
+          x: (parentGraphNode?.x || 0) + randomRange(-40, 40),
+          y: (parentGraphNode?.y || 0) + randomRange(-40, 40),
+          vx: 0, vy: 0, fx: 0, fy: 0,
+        });
+        updatedLinks.push({ source: dk.parent_id, target: dk.id });
+
+        // Update moved captures: change connected_to and re-link
+        movedIds.forEach(captureId => {
+          const captureNode = updatedNodes.find(n => n.id === captureId);
+          if (captureNode) {
+            captureNode.connected_to = dk.id;
+          }
+          // Remove old link, add new
+          const oldLinkIdx = updatedLinks.findIndex(l => l.target === captureId);
+          if (oldLinkIdx >= 0) updatedLinks.splice(oldLinkIdx, 1);
+          updatedLinks.push({ source: dk.id, target: captureId });
+        });
+
+        return { nodes: updatedNodes, links: updatedLinks };
+      });
+
+      console.log(`DetailedKeyword created: "${dk.title}", moved ${movedIds.length} captures`);
+    }).catch(e => console.error("Similarity check failed:", e));
 
     return { keyword_id: assignedKeywordId || undefined, keyword_title: assignedKeywordTitle || undefined };
   },
