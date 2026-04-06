@@ -297,6 +297,14 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       return;
     }
 
+    // Increment request ID to track latest request
+    const requestId = (get() as GalaxyState & { _searchRequestId?: number })._searchRequestId
+      ? ((get() as GalaxyState & { _searchRequestId?: number })._searchRequestId as number) + 1
+      : 1;
+    (set as unknown as (fn: (s: GalaxyState & { _searchRequestId?: number }) => Partial<GalaxyState & { _searchRequestId?: number }>) => void)(
+      (s) => ({ ...s, _searchRequestId: requestId })
+    );
+
     // Immediate local filtering for instant feedback
     const localResults = get().nodes.filter(
       (n) =>
@@ -311,6 +319,10 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       const { data, error } = await supabase.functions.invoke("search-captures", {
         body: { query: q },
       });
+
+      // Check if this is still the latest request
+      const currentId = (get() as GalaxyState & { _searchRequestId?: number })._searchRequestId;
+      if (currentId !== requestId) return; // Stale response, discard
 
       if (error || !data) return;
 
