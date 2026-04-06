@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const randomRange = (min: number, max: number) => Math.random() * (max - min) + min;
+let _searchRequestId = 0;
 
 export interface GraphNode {
   id: string;
@@ -298,12 +299,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     }
 
     // Increment request ID to track latest request
-    const requestId = (get() as GalaxyState & { _searchRequestId?: number })._searchRequestId
-      ? ((get() as GalaxyState & { _searchRequestId?: number })._searchRequestId as number) + 1
-      : 1;
-    (set as unknown as (fn: (s: GalaxyState & { _searchRequestId?: number }) => Partial<GalaxyState & { _searchRequestId?: number }>) => void)(
-      (s) => ({ ...s, _searchRequestId: requestId })
-    );
+    const requestId = ++_searchRequestId;
 
     // Immediate local filtering for instant feedback
     const localResults = get().nodes.filter(
@@ -321,8 +317,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       });
 
       // Check if this is still the latest request
-      const currentId = (get() as GalaxyState & { _searchRequestId?: number })._searchRequestId;
-      if (currentId !== requestId) return; // Stale response, discard
+      if (_searchRequestId !== requestId) return; // Stale response, discard
 
       if (error || !data) return;
 
