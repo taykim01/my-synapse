@@ -199,7 +199,10 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       return;
     }
 
-    const { nodes, links } = buildGraphFromDB(inserted, []);
+    const { nodes, links } = buildGraphFromDB(
+      inserted.map(n => ({ id: n.id, title: n.title, type: (n as any).type || "keyword", parent_id: (n as any).parent_id || null })),
+      [],
+    );
     set({ nodes, links, gameState: "exploring" });
   },
 
