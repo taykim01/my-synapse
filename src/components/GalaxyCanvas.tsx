@@ -31,7 +31,7 @@ export function GalaxyCanvas() {
     draggedNode: null as GraphNode | null,
     width: 0,
     height: 0,
-    camera: { x: 0, y: 0, zoom: 1, targetX: 0 },
+    camera: { x: 0, y: 0, panX: 0, panY: 0, zoom: 1, targetX: 0 },
   });
   const birthsRef = useRef<StarBirth[]>([]);
   const nebulaeRef = useRef<NebulaPatch[]>([]);
