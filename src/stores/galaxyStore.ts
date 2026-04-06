@@ -63,7 +63,7 @@ interface GalaxyState {
 }
 
 function buildGraphFromDB(
-  dbNodes: { id: string; title: string }[],
+  dbNodes: { id: string; title: string; type: string; parent_id: string | null }[],
   dbCaptures: {
     id: string;
     title: string;
@@ -80,8 +80,12 @@ function buildGraphFromDB(
   const centerId = "center";
   nodes.push({ id: centerId, type: "center", title: "나", x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0 });
 
-  dbNodes.forEach((n, i) => {
-    const angle = (i / dbNodes.length) * Math.PI * 2;
+  // Separate keywords and detailed_keywords
+  const keywords = dbNodes.filter(n => n.type === "keyword" || !n.type);
+  const detailedKeywords = dbNodes.filter(n => n.type === "detailed_keyword");
+
+  keywords.forEach((n, i) => {
+    const angle = (i / keywords.length) * Math.PI * 2;
     nodes.push({
       id: n.id,
       dbId: n.id,
@@ -97,8 +101,28 @@ function buildGraphFromDB(
     links.push({ source: centerId, target: n.id });
   });
 
+  // Add detailed_keywords linked to their parent
+  detailedKeywords.forEach((n) => {
+    const parentId = n.parent_id || centerId;
+    const parent = nodes.find((nd) => nd.id === parentId);
+    nodes.push({
+      id: n.id,
+      dbId: n.id,
+      type: "detailed_keyword",
+      title: n.title,
+      connected_to: n.parent_id || undefined,
+      x: (parent?.x || 0) + randomRange(-40, 40),
+      y: (parent?.y || 0) + randomRange(-40, 40),
+      vx: 0,
+      vy: 0,
+      fx: 0,
+      fy: 0,
+    });
+    links.push({ source: parentId, target: n.id });
+  });
+
   dbCaptures.forEach((c) => {
-    const parentId = c.connected_to || (dbNodes.length > 0 ? dbNodes[0].id : centerId);
+    const parentId = c.connected_to || (keywords.length > 0 ? keywords[0].id : centerId);
     const parent = nodes.find((n) => n.id === parentId);
     nodes.push({
       id: c.id,
