@@ -539,7 +539,7 @@ export function GalaxyCanvas() {
       }
       if (isDragging && graphRef.current.draggedNode && !isMoved) {
         const clickedType = graphRef.current.draggedNode.type;
-        if (clickedType === 'capture' || clickedType === 'keyword' || clickedType === 'detailed_keyword') {
+        if (clickedType === 'capture' || clickedType === 'keyword' || clickedType === 'detailed_keyword' || clickedType === 'center') {
           setSelectedNode(graphRef.current.draggedNode);
         }
       }
@@ -631,7 +631,7 @@ export function GalaxyCanvas() {
       }
       if (isDragging && graphRef.current.draggedNode && !isMoved) {
         const clickedType = graphRef.current.draggedNode.type;
-        if (clickedType === 'capture' || clickedType === 'keyword' || clickedType === 'detailed_keyword') {
+        if (clickedType === 'capture' || clickedType === 'keyword' || clickedType === 'detailed_keyword' || clickedType === 'center') {
           setSelectedNode(graphRef.current.draggedNode);
         }
       }
