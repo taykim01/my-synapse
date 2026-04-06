@@ -423,9 +423,9 @@ export function GalaxyCanvas() {
             const capLabelAlpha = isSearchHighlight
               ? nodeAlpha
               : Math.min(1, (zoom - 1.2) / 0.3) * nodeAlpha;
-            ctx.globalAlpha = capLabelAlpha * 0.7;
+            ctx.globalAlpha = capLabelAlpha;
             ctx.font = '9px sans-serif';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
             ctx.textAlign = 'center';
             const label = node.title.length > 16 ? node.title.slice(0, 15) + '…' : node.title;
             ctx.fillText(label, node.x, node.y + radius + 12);
