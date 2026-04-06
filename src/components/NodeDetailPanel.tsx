@@ -170,6 +170,98 @@ function KeywordCaptureList({ keywordId, onSelectCapture }: { keywordId: string;
   );
 }
 
+function CenterNodeList({ onSelectNode }: { onSelectNode: (node: GraphNode) => void }) {
+  const nodes = useGalaxyStore(s => s.nodes);
+  const links = useGalaxyStore(s => s.links);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+
+  const keywords = nodes.filter(n => n.type === 'keyword');
+
+  const getDetailedKeywords = (kwId: string) =>
+    nodes.filter(n => n.type === 'detailed_keyword' && links.some(l => l.source === kwId && l.target === n.id));
+
+  const getCaptures = (parentId: string) =>
+    nodes.filter(n => n.type === 'capture' && links.some(l => l.source === parentId && l.target === n.id));
+
+  const toggleGroup = (id: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const totalCaptures = nodes.filter(n => n.type === 'capture').length;
+
+  return (
+    <div className="flex-1 overflow-y-auto mb-6 space-y-2">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold text-muted-foreground tracking-wider">전체 구조</h3>
+        <span className="text-[10px] text-muted-foreground">{keywords.length}개 키워드 · {totalCaptures}개 캡처</span>
+      </div>
+      {keywords.map(kw => {
+        const dks = getDetailedKeywords(kw.id);
+        const directCaps = getCaptures(kw.id);
+        const isOpen = openGroups.has(kw.id);
+        const totalUnder = directCaps.length + dks.reduce((s, dk) => s + getCaptures(dk.id).length, 0);
+
+        return (
+          <div key={kw.id} className="rounded-xl border border-border overflow-hidden">
+            <button
+              onClick={() => toggleGroup(kw.id)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/60 transition-colors text-left"
+            >
+              <span className="text-sm font-medium text-foreground flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#d946ef] shrink-0" />
+                {kw.title}
+                <span className="text-[10px] text-muted-foreground font-normal">({totalUnder})</span>
+              </span>
+              <ChevronDown size={14} className={`text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isOpen && (
+              <div className="p-2 space-y-2">
+                {/* Detailed keyword sub-groups */}
+                {dks.map(dk => {
+                  const dkCaps = getCaptures(dk.id);
+                  if (dkCaps.length === 0) return null;
+                  const dkOpen = openGroups.has(dk.id);
+                  return (
+                    <div key={dk.id} className="rounded-lg border border-border/50 overflow-hidden ml-2">
+                      <button
+                        onClick={() => toggleGroup(dk.id)}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-muted/20 hover:bg-muted/40 transition-colors text-left"
+                      >
+                        <span className="text-xs font-medium text-foreground flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-[#6366f1] shrink-0" />
+                          {dk.title}
+                          <span className="text-[10px] text-muted-foreground font-normal">({dkCaps.length})</span>
+                        </span>
+                        <ChevronDown size={12} className={`text-muted-foreground transition-transform duration-200 ${dkOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {dkOpen && (
+                        <div className="p-1.5 space-y-1.5">
+                          {dkCaps.map(c => (
+                            <CaptureItem key={c.id} capture={c} onClick={() => onSelectNode(c)} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Direct captures */}
+                {directCaps.map(c => (
+                  <CaptureItem key={c.id} capture={c} onClick={() => onSelectNode(c)} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function NodeDetailPanel() {
   const selectedNode = useGalaxyStore(s => s.selectedNode);
   const activeNode = useGalaxyStore(s => s.activeNode);
