@@ -292,6 +292,50 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       isAddingCapture: false,
     });
 
+    // Check similarity and potentially create DetailedKeyword (async, non-blocking)
+    supabase.functions.invoke("check-capture-similarity", {
+      body: { capture_id: insertedCapture.id, node_id: targetId, threshold: 0.3 },
+    }).then(({ data: simResult, error: simError }) => {
+      if (simError || !simResult?.created) return;
+      const dk = simResult.detailed_keyword;
+      const movedIds: string[] = simResult.moved_capture_ids || [];
+
+      set((state) => {
+        const updatedNodes = [...state.nodes];
+        const updatedLinks = [...state.links];
+
+        // Add the new DetailedKeyword node
+        const parentGraphNode = updatedNodes.find(n => n.id === dk.parent_id);
+        updatedNodes.push({
+          id: dk.id,
+          dbId: dk.id,
+          type: "detailed_keyword",
+          title: dk.title,
+          connected_to: dk.parent_id,
+          x: (parentGraphNode?.x || 0) + randomRange(-40, 40),
+          y: (parentGraphNode?.y || 0) + randomRange(-40, 40),
+          vx: 0, vy: 0, fx: 0, fy: 0,
+        });
+        updatedLinks.push({ source: dk.parent_id, target: dk.id });
+
+        // Update moved captures: change connected_to and re-link
+        movedIds.forEach(captureId => {
+          const captureNode = updatedNodes.find(n => n.id === captureId);
+          if (captureNode) {
+            captureNode.connected_to = dk.id;
+          }
+          // Remove old link, add new
+          const oldLinkIdx = updatedLinks.findIndex(l => l.target === captureId);
+          if (oldLinkIdx >= 0) updatedLinks.splice(oldLinkIdx, 1);
+          updatedLinks.push({ source: dk.id, target: captureId });
+        });
+
+        return { nodes: updatedNodes, links: updatedLinks };
+      });
+
+      console.log(`DetailedKeyword created: "${dk.title}", moved ${movedIds.length} captures`);
+    }).catch(e => console.error("Similarity check failed:", e));
+
     return { keyword_id: assignedKeywordId || undefined, keyword_title: assignedKeywordTitle || undefined };
   },
 
