@@ -118,7 +118,25 @@ export function CaptureModal() {
         .from('capture-files')
         .getPublicUrl(filePath);
 
-      setCaptureForm({ content_url: urlData.publicUrl });
+      const publicUrl = urlData.publicUrl;
+      setCaptureForm({ content_url: publicUrl });
+
+      // Auto-generate title for images
+      if (contentType === 'IMAGE') {
+        setFetchingMeta(true);
+        try {
+          const { data, error: aiError } = await supabase.functions.invoke('generate-image-title', {
+            body: { image_url: publicUrl },
+          });
+          if (!aiError && data?.title) {
+            setCaptureForm({ title: data.title });
+          }
+        } catch (err) {
+          console.error('Image title generation failed:', err);
+        } finally {
+          setFetchingMeta(false);
+        }
+      }
     } finally {
       setUploading(false);
     }
