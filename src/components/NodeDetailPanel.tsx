@@ -296,25 +296,7 @@ export function NodeDetailPanel() {
       )}
 
       {displayNode?.type === 'keyword' && (
-        <div className="flex-1 overflow-y-auto mb-6 space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground mb-3 tracking-wider">연결된 캡처 목록</h3>
-          {getConnectedCaptures(displayNode.id).length > 0 ? (
-            getConnectedCaptures(displayNode.id).map(capture => (
-              <div
-                key={capture.id}
-                className="bg-muted/50 p-4 rounded-xl border border-border hover:bg-muted hover:border-secondary/50 cursor-pointer transition-all group"
-                onClick={() => setSelectedNode(capture)}
-              >
-                <h4 className="text-foreground text-sm font-medium group-hover:text-secondary transition-colors">{capture.title}</h4>
-                {capture.description && <p className="text-muted-foreground text-xs mt-1.5 line-clamp-2 leading-relaxed">{capture.description}</p>}
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-10 bg-muted/50 rounded-xl border border-dashed border-border">
-              <p className="text-xs text-muted-foreground">아직 이 영역에 연결된 캡처가 없습니다.</p>
-            </div>
-          )}
-        </div>
+        <KeywordCaptureList keywordId={displayNode.id} onSelectCapture={setSelectedNode} />
       )}
     </div>
   );
