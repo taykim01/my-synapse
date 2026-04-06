@@ -170,6 +170,7 @@ function KeywordCaptureList({ keywordId, onSelectCapture }: { keywordId: string;
   );
 }
 
+export function NodeDetailPanel() {
   const selectedNode = useGalaxyStore(s => s.selectedNode);
   const activeNode = useGalaxyStore(s => s.activeNode);
   const setSelectedNode = useGalaxyStore(s => s.setSelectedNode);
