@@ -372,19 +372,53 @@ export function NodeDetailPanel() {
             </div>
           )}
 
-          {displayNode.content_url && (
-            <a
-              href={displayNode.content_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-primary hover:underline mb-3 block truncate"
-            >
-              {displayNode.content_url}
-            </a>
+          {/* Image preview */}
+          {displayNode.content_type === 'IMAGE' && displayNode.content_url && (
+            <div className="mb-4 rounded-xl border border-border overflow-hidden">
+              <img
+                src={displayNode.content_url}
+                alt={displayNode.title}
+                className="w-full max-h-64 object-contain bg-muted/30"
+              />
+            </div>
           )}
 
+          {/* File preview */}
+          {displayNode.content_type === 'FILE' && displayNode.content_url && (
+            <div className="mb-4">
+              {displayNode.content_url.match(/\.(pdf)$/i) ? (
+                <iframe
+                  src={displayNode.content_url}
+                  className="w-full h-64 rounded-xl border border-border"
+                  title={displayNode.title}
+                />
+              ) : (
+                <a
+                  href={displayNode.content_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 bg-muted/50 p-4 rounded-xl border border-border hover:bg-muted transition-colors"
+                >
+                  <ExternalLink size={16} className="text-accent shrink-0" />
+                  <span className="text-sm text-foreground truncate">파일 열기</span>
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Link preview */}
           {displayNode.content_type === 'LINK' && displayNode.content_url && (
-            <LinkPreviewCard url={displayNode.content_url} />
+            <>
+              <a
+                href={displayNode.content_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline mb-3 block truncate"
+              >
+                {displayNode.content_url}
+              </a>
+              <LinkPreviewCard url={displayNode.content_url} />
+            </>
           )}
 
           {/* Description: editable for TEXT type */}
