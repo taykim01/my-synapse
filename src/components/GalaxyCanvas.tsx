@@ -514,8 +514,11 @@ export function GalaxyCanvas() {
     if (!canvas) return;
 
     let isDragging = false;
+    let isPanning = false;
     let startX = 0;
     let startY = 0;
+    let panStartCamX = 0;
+    let panStartCamY = 0;
     let isMoved = false;
     let lastPinchDist = 0;
     let isPinching = false;
@@ -562,7 +565,9 @@ export function GalaxyCanvas() {
       }
 
       if (!nodeClicked) {
-        setSelectedNode(null);
+        isPanning = true;
+        panStartCamX = graphRef.current.camera.x;
+        panStartCamY = graphRef.current.camera.y;
       }
     };
 
