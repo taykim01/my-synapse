@@ -20,7 +20,7 @@ export default function Auth() {
 
     try {
       if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -29,7 +29,11 @@ export default function Auth() {
           },
         });
         if (error) throw error;
-        toast({ title: '회원가입 완료', description: '이메일을 확인해주세요.' });
+        if (data.session) {
+          navigate('/galaxy');
+        } else {
+          toast({ title: '회원가입 완료', description: '이메일을 확인해주세요.' });
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
