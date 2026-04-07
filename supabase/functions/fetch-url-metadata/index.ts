@@ -20,6 +20,170 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
+function extractHashtags(text: string): string[] {
+  const matches = text.match(/#[\w\u3131-\uD79D]+/g);
+  return matches ? [...new Set(matches.map(t => t.replace('#', '')))] : [];
+}
+
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+}
+
+interface UrlMetadata {
+  title: string;
+  thumbnail: string;
+  description: string;
+  author?: string;
+  keywords?: string[];
+  category?: string;
+  site_name?: string;
+  type?: string;
+}
+
+async function fetchYouTubeMetadata(url: string): Promise<UrlMetadata> {
+  const videoId = extractVideoId(url);
+  const result: UrlMetadata = { title: '', thumbnail: '', description: '' };
+
+  // 1. Try oEmbed for basic info (title, author)
+  try {
+    const oembedRes = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+    );
+    if (oembedRes.ok) {
+      const data = await oembedRes.json();
+      result.title = data.title || '';
+      result.author = data.author_name || '';
+      result.thumbnail = videoId
+        ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+        : data.thumbnail_url || '';
+      result.site_name = 'YouTube';
+      result.type = 'video';
+    }
+  } catch (e) {
+    console.error('YouTube oEmbed failed:', e);
+  }
+
+  // 2. Fetch HTML page for description, tags, category
+  try {
+    const htmlRes = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; SynapseBot/1.0)',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      },
+      redirect: 'follow',
+    });
+    const html = await htmlRes.text();
+
+    // og:description
+    const ogDescMatch = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i);
+    if (ogDescMatch) {
+      result.description = decodeHtmlEntities(ogDescMatch[1]);
+    }
+
+    // Fallback title from og:title if oEmbed failed
+    if (!result.title) {
+      const ogTitleMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
+      if (ogTitleMatch) result.title = decodeHtmlEntities(ogTitleMatch[1]);
+    }
+
+    // meta keywords
+    const keywordsMatch = html.match(/<meta[^>]+name=["']keywords["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']keywords["']/i);
+    if (keywordsMatch) {
+      result.keywords = keywordsMatch[1].split(',').map(k => k.trim()).filter(Boolean);
+    }
+
+    // Extract hashtags from description
+    if (result.description) {
+      const hashtags = extractHashtags(result.description);
+      if (hashtags.length > 0) {
+        result.keywords = [...(result.keywords || []), ...hashtags];
+        result.keywords = [...new Set(result.keywords)];
+      }
+    }
+
+    // og:video:tag (YouTube sometimes includes these)
+    const tagMatches = html.matchAll(/<meta[^>]+property=["']og:video:tag["'][^>]+content=["']([^"']+)["']/gi);
+    for (const m of tagMatches) {
+      if (!result.keywords) result.keywords = [];
+      result.keywords.push(decodeHtmlEntities(m[1]));
+    }
+    if (result.keywords) {
+      result.keywords = [...new Set(result.keywords)];
+    }
+
+    // Genre/category from structured data
+    const genreMatch = html.match(/"genre"\s*:\s*"([^"]+)"/);
+    if (genreMatch) {
+      result.category = decodeHtmlEntities(genreMatch[1]);
+    }
+  } catch (e) {
+    console.error('YouTube HTML parsing failed:', e);
+  }
+
+  return result;
+}
+
+async function fetchGeneralMetadata(url: string): Promise<UrlMetadata> {
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; SynapseBot/1.0)',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+    },
+    redirect: 'follow',
+  });
+
+  const html = await response.text();
+
+  const getMetaContent = (property: string, isName = false): string => {
+    const attr = isName ? 'name' : 'property';
+    const m = html.match(new RegExp(`<meta[^>]+${attr}=["']${property}["'][^>]+content=["']([^"']+)["']`, 'i'))
+      || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+${attr}=["']${property}["']`, 'i'));
+    return m ? decodeHtmlEntities(m[1]) : '';
+  };
+
+  const titleTagMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+  const title = getMetaContent('og:title') || (titleTagMatch ? decodeHtmlEntities(titleTagMatch[1]) : '');
+  const thumbnail = getMetaContent('og:image') || getMetaContent('twitter:image', true);
+  const description = getMetaContent('og:description') || getMetaContent('description', true);
+  const siteName = getMetaContent('og:site_name');
+  const type = getMetaContent('og:type');
+
+  const keywordsRaw = getMetaContent('keywords', true);
+  const keywords = keywordsRaw ? keywordsRaw.split(',').map(k => k.trim()).filter(Boolean) : undefined;
+
+  // Extract hashtags from description
+  let allKeywords = keywords || [];
+  if (description) {
+    const hashtags = extractHashtags(description);
+    if (hashtags.length > 0) {
+      allKeywords = [...allKeywords, ...hashtags];
+      allKeywords = [...new Set(allKeywords)];
+    }
+  }
+
+  return {
+    title: title.trim(),
+    thumbnail,
+    description: description.trim(),
+    site_name: siteName || undefined,
+    type: type || undefined,
+    keywords: allKeywords.length > 0 ? allKeywords : undefined,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -39,65 +203,11 @@ Deno.serve(async (req) => {
       formattedUrl = `https://${formattedUrl}`;
     }
 
-    // YouTube: use oEmbed API
-    if (isYouTubeUrl(formattedUrl)) {
-      try {
-        const oembedRes = await fetch(
-          `https://www.youtube.com/oembed?url=${encodeURIComponent(formattedUrl)}&format=json`
-        );
-        if (oembedRes.ok) {
-          const data = await oembedRes.json();
-          const videoId = extractVideoId(formattedUrl);
-          const thumbnail = videoId
-            ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
-            : data.thumbnail_url || '';
+    const metadata = isYouTubeUrl(formattedUrl)
+      ? await fetchYouTubeMetadata(formattedUrl)
+      : await fetchGeneralMetadata(formattedUrl);
 
-          return new Response(JSON.stringify({
-            title: data.title || '',
-            thumbnail,
-            description: '',
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-      } catch (e) {
-        console.error('YouTube oEmbed failed, falling back to HTML parsing:', e);
-      }
-    }
-
-    // Default: HTML parsing
-    const response = await fetch(formattedUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SynapseBot/1.0)',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-      redirect: 'follow',
-    });
-
-    const html = await response.text();
-
-    const ogTitleMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i);
-    const titleTagMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = ogTitleMatch?.[1] || titleTagMatch?.[1] || '';
-
-    const ogImageMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    const twitterImageMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
-    const thumbnail = ogImageMatch?.[1] || twitterImageMatch?.[1] || '';
-
-    const ogDescMatch = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i);
-    const metaDescMatch = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i);
-    const description = ogDescMatch?.[1] || metaDescMatch?.[1] || '';
-
-    return new Response(JSON.stringify({
-      title: title.trim(),
-      thumbnail,
-      description: description.trim(),
-    }), {
+    return new Response(JSON.stringify(metadata), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
