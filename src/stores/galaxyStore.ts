@@ -419,6 +419,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
         content_url: "",
         source: "",
         tag: "AI제안_태그",
+        metadata: null,
       },
     });
   },
