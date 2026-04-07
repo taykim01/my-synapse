@@ -289,13 +289,34 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       console.error("AI keyword assignment failed:", e);
     }
 
-    // Find the target keyword node in local graph
+    // Find the target keyword node in local graph (or add it if edge function created "기타")
     const targetId = assignedKeywordId || nodes.find((n) => n.type === "keyword")?.id;
     if (!targetId) return null;
 
-    const parentNode = nodes.find((n) => n.id === targetId);
+    let parentNode = nodes.find((n) => n.id === targetId);
     const newNodes = [...nodes];
     const newLinks = [...links];
+
+    // If the assigned keyword doesn't exist locally (e.g. "기타" created by edge function), add it
+    if (!parentNode && assignedKeywordId) {
+      const centerId = "center";
+      const centerNode = nodes.find((n) => n.id === centerId);
+      const newKeywordNode: GraphNode = {
+        id: assignedKeywordId,
+        dbId: assignedKeywordId,
+        type: "keyword",
+        title: assignedKeywordTitle,
+        x: (centerNode?.x || 0) + randomRange(-80, 80),
+        y: (centerNode?.y || 0) + randomRange(-80, 80),
+        vx: 0,
+        vy: 0,
+        fx: 0,
+        fy: 0,
+      };
+      newNodes.push(newKeywordNode);
+      newLinks.push({ source: centerId, target: assignedKeywordId });
+      parentNode = newKeywordNode;
+    }
 
     newNodes.push({
       id: insertedCapture.id,
