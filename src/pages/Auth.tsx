@@ -33,6 +33,7 @@ export default function Auth() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        navigate('/galaxy');
       }
     } catch (error: any) {
       toast({ title: '오류', description: error.message, variant: 'destructive' });
