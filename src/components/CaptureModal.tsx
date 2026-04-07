@@ -393,6 +393,10 @@ export function CaptureModal() {
             onClick={async () => {
               setSaving(true);
               try {
+                // Wait for title generation if still in progress
+                if (titleGenPromiseRef.current) {
+                  await titleGenPromiseRef.current;
+                }
                 const result = await addCapture();
                 if (result?.keyword_title) {
                   toast({ title: '캡처 완료', description: `"${result.keyword_title}" 키워드에 연결되었습니다.` });
