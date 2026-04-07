@@ -6,6 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MIN_SIMILARITY_THRESHOLD = 0.4;
+
 async function generateEmbedding(text: string, openaiApiKey: string): Promise<number[] | null> {
   try {
     const response = await fetch("https://api.openai.com/v1/embeddings", {
@@ -33,6 +35,45 @@ async function generateEmbedding(text: string, openaiApiKey: string): Promise<nu
     console.error("Embedding generation error:", e);
     return null;
   }
+}
+
+async function getOrCreateMiscKeyword(adminClient: any, userId: string, openaiApiKey: string): Promise<{ id: string; title: string }> {
+  // Check if "기타" keyword already exists for this user
+  const { data: existing } = await adminClient
+    .from("nodes")
+    .select("id, title")
+    .eq("creator_id", userId)
+    .eq("type", "keyword")
+    .eq("title", "기타")
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    return { id: existing[0].id, title: existing[0].title };
+  }
+
+  // Create "기타" keyword
+  const { data: created, error } = await adminClient
+    .from("nodes")
+    .insert({ title: "기타", creator_id: userId, type: "keyword" })
+    .select("id, title")
+    .single();
+
+  if (error || !created) {
+    console.error("Failed to create 기타 keyword:", error);
+    throw new Error("Failed to create 기타 keyword");
+  }
+
+  // Generate embedding for the new node
+  const embedding = await generateEmbedding("기타", openaiApiKey);
+  if (embedding) {
+    await adminClient
+      .from("nodes")
+      .update({ embedding: JSON.stringify(embedding) })
+      .eq("id", created.id);
+  }
+
+  console.log(`Created "기타" keyword node: ${created.id}`);
+  return { id: created.id, title: created.title };
 }
 
 Deno.serve(async (req) => {
@@ -78,21 +119,12 @@ Deno.serve(async (req) => {
     const embedding = await generateEmbedding(embeddingText, openaiApiKey);
 
     if (!embedding) {
-      // Fallback: no embedding, pick first keyword
-      const { data: keywords } = await adminClient
-        .from("nodes")
-        .select("id, title")
-        .eq("creator_id", user.id)
-        .eq("type", "keyword")
-        .limit(1);
-
-      const fallbackId = keywords?.[0]?.id || null;
-      if (fallbackId) {
-        await adminClient.from("captures").update({ connected_to: fallbackId }).eq("id", capture_id);
-      }
+      // Fallback: no embedding, assign to "기타"
+      const misc = await getOrCreateMiscKeyword(adminClient, user.id, openaiApiKey);
+      await adminClient.from("captures").update({ connected_to: misc.id }).eq("id", capture_id);
 
       return new Response(
-        JSON.stringify({ keyword_id: fallbackId, keyword_title: keywords?.[0]?.title || "", reason: "no_embedding_fallback", has_embedding: false }),
+        JSON.stringify({ keyword_id: misc.id, keyword_title: misc.title, reason: "no_embedding_fallback_misc", has_embedding: false }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -111,25 +143,30 @@ Deno.serve(async (req) => {
 
     if (!matchError && matchedNodes && matchedNodes.length > 0) {
       const best = matchedNodes[0];
-      selectedKeywordId = best.id;
-      selectedKeywordTitle = best.title;
-      reason = `embedding similarity: ${best.similarity.toFixed(3)}`;
-      console.log(`Matched node "${best.title}" (${best.type}) with similarity ${best.similarity.toFixed(3)}`);
-    } else {
-      // Fallback: no matching nodes (maybe no node embeddings yet), pick first keyword
-      console.log("No node embeddings found, falling back to first keyword");
-      const { data: keywords } = await adminClient
-        .from("nodes")
-        .select("id, title")
-        .eq("creator_id", user.id)
-        .eq("type", "keyword")
-        .limit(1);
 
-      if (keywords && keywords.length > 0) {
-        selectedKeywordId = keywords[0].id;
-        selectedKeywordTitle = keywords[0].title;
-        reason = "fallback_no_node_embeddings";
+      // Filter out "기타" from similarity matching — it should only be used as fallback
+      const isEtcNode = best.title === "기타";
+
+      if (!isEtcNode && best.similarity >= MIN_SIMILARITY_THRESHOLD) {
+        selectedKeywordId = best.id;
+        selectedKeywordTitle = best.title;
+        reason = `embedding similarity: ${best.similarity.toFixed(3)}`;
+        console.log(`Matched node "${best.title}" (${best.type}) with similarity ${best.similarity.toFixed(3)}`);
+      } else {
+        // Similarity too low or matched "기타" → assign to "기타"
+        console.log(`Best match "${best.title}" similarity ${best.similarity.toFixed(3)} below threshold ${MIN_SIMILARITY_THRESHOLD}, assigning to 기타`);
+        const misc = await getOrCreateMiscKeyword(adminClient, user.id, openaiApiKey);
+        selectedKeywordId = misc.id;
+        selectedKeywordTitle = misc.title;
+        reason = `low_similarity_fallback (best: ${best.title} ${best.similarity.toFixed(3)})`;
       }
+    } else {
+      // No matching nodes at all → assign to "기타"
+      console.log("No node embeddings found, assigning to 기타");
+      const misc = await getOrCreateMiscKeyword(adminClient, user.id, openaiApiKey);
+      selectedKeywordId = misc.id;
+      selectedKeywordTitle = misc.title;
+      reason = "no_node_embeddings_fallback_misc";
     }
 
     // Update capture with keyword and embedding
