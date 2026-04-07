@@ -215,6 +215,17 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       [],
     );
     set({ nodes, links, gameState: "exploring" });
+
+    // Generate embeddings for new keyword nodes (async, non-blocking)
+    supabase.functions
+      .invoke("generate-node-embeddings", {
+        body: { node_ids: inserted.map((n) => n.id) },
+      })
+      .then(({ data, error: embError }) => {
+        if (embError) console.error("Node embedding generation failed:", embError);
+        else console.log(`Node embeddings generated:`, data);
+      })
+      .catch((e) => console.error("Node embedding generation error:", e));
   },
 
   addCapture: async () => {
