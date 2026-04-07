@@ -15,7 +15,7 @@ async function generateEmbedding(text: string, openaiApiKey: string): Promise<nu
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "text-embedding-3-small",
+        model: "text-embedding-3-large",
         input: text,
         dimensions: 1536,
       }),
