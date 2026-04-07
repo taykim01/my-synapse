@@ -280,6 +280,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
           description: captureForm.description || "",
           content_type: captureForm.content_type,
           content_url: captureForm.content_url || "",
+          metadata: captureForm.metadata || undefined,
         },
       });
       if (!aiError && aiResult?.keyword_id) {
