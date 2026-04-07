@@ -74,58 +74,90 @@ async function getOrCreateMiscKeyword(adminClient: any, userId: string, openaiAp
 }
 
 /**
- * Build an optimized string for embedding generation.
- * Prioritizes: title, description, keywords/tags, category, author, site context.
- * Keeps it concise but semantically rich.
+ * Use AI to generate a concise category caption from title + metadata.
+ * This caption is then used for embedding, producing a much cleaner semantic signal.
  */
-function buildEmbeddingText(params: {
+async function generateCategoryCaption(params: {
   title?: string;
   description?: string;
   content_type?: string;
-  content_url?: string;
   metadata?: Record<string, unknown>;
-}): string {
-  const parts: string[] = [];
-
-  // Title is the strongest signal
-  if (params.title) {
-    parts.push(params.title);
+}): Promise<string | null> {
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!lovableApiKey) {
+    console.error("LOVABLE_API_KEY not configured, falling back to raw text");
+    return null;
   }
 
   const meta = params.metadata || {};
-
-  // Description adds context (truncate to ~300 chars to avoid noise)
+  const contextParts: string[] = [];
+  if (params.title) contextParts.push(`제목: ${params.title}`);
   const desc = (meta.description as string) || params.description || '';
-  if (desc) {
-    parts.push(desc.slice(0, 300));
-  }
-
-  // Keywords/tags are highly relevant for categorization
+  if (desc) contextParts.push(`설명: ${desc.slice(0, 500)}`);
   const keywords = meta.keywords as string[] | undefined;
-  if (keywords && keywords.length > 0) {
-    parts.push(keywords.join(', '));
-  }
+  if (keywords?.length) contextParts.push(`태그: ${keywords.join(', ')}`);
+  if (meta.author) contextParts.push(`저자/채널: ${meta.author}`);
+  if (meta.category) contextParts.push(`카테고리: ${meta.category}`);
+  if (meta.site_name) contextParts.push(`출처: ${meta.site_name}`);
+  if (params.content_type) contextParts.push(`콘텐츠 유형: ${params.content_type}`);
 
-  // Category directly helps classification
-  if (meta.category) {
-    parts.push(`카테고리: ${meta.category}`);
-  }
+  const context = contextParts.join('\n');
 
-  // Author/channel provides context (e.g. music channel → music)
-  if (meta.author) {
-    parts.push(`${meta.author}`);
-  }
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          {
+            role: "system",
+            content: `You are a categorization expert. Given information about a piece of content, generate a short caption (1-2 sentences, max 50 words) that describes what category/topic this content belongs to. Focus on the subject matter, theme, and domain. Write in Korean. Be specific — e.g. "한국 역사 다큐멘터리 - 조선시대 궁궐 건축과 온돌 시스템" not just "역사". The caption will be used to match this content to the right category via semantic similarity.`,
+          },
+          {
+            role: "user",
+            content: context,
+          },
+        ],
+      }),
+    });
 
-  // Site name provides domain context
-  if (meta.site_name) {
-    parts.push(`${meta.site_name}`);
-  }
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("AI caption generation error:", response.status, errText);
+      return null;
+    }
 
-  // Content type as context
-  if (meta.type) {
-    parts.push(`${meta.type}`);
+    const data = await response.json();
+    const caption = data.choices?.[0]?.message?.content?.trim();
+    console.log("AI caption:", caption);
+    return caption || null;
+  } catch (e) {
+    console.error("Caption generation error:", e);
+    return null;
   }
+}
 
+/**
+ * Fallback: build embedding text directly from metadata when AI caption fails.
+ */
+function buildFallbackEmbeddingText(params: {
+  title?: string;
+  description?: string;
+  metadata?: Record<string, unknown>;
+}): string {
+  const parts: string[] = [];
+  if (params.title) parts.push(params.title);
+  const meta = params.metadata || {};
+  const desc = (meta.description as string) || params.description || '';
+  if (desc) parts.push(desc.slice(0, 300));
+  const keywords = meta.keywords as string[] | undefined;
+  if (keywords?.length) parts.push(keywords.join(', '));
+  if (meta.category) parts.push(String(meta.category));
+  if (meta.author) parts.push(String(meta.author));
   return parts.filter(Boolean).join(' | ');
 }
 
