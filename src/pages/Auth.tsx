@@ -46,6 +46,7 @@ export default function Auth() {
       <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-synapse-fuchsia/30 via-background to-background" />
 
       <div className="z-10 max-w-md w-full bg-card/80 backdrop-blur-xl border border-border p-8 rounded-2xl shadow-2xl">
+        <button onClick={() => navigate('/')} className="text-xs text-muted-foreground hover:text-foreground mb-4 block">← 돌아가기</button>
         <h1 className="text-3xl font-display text-primary text-center tracking-wider mb-2">Synapse</h1>
         <p className="text-sm text-muted-foreground text-center mb-8 leading-relaxed">
           생각의 파편을 연결하는 뉴런 네트워크
