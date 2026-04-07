@@ -54,11 +54,10 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
-    if (!lovableApiKey) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!openaiApiKey) {
+      throw new Error("OPENAI_API_KEY is not configured");
     }
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -73,138 +72,70 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const { data: keywords, error: kwError } = await adminClient
-      .from("nodes")
-      .select("id, title")
-      .eq("creator_id", user.id);
 
-    if (kwError || !keywords || keywords.length === 0) {
-      return new Response(JSON.stringify({ error: "No keywords found", keyword_id: null }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Generate embedding from capture content
+    const embeddingText = [title, description, content_url].filter(Boolean).join(" ");
+    const embedding = await generateEmbedding(embeddingText, openaiApiKey);
+
+    if (!embedding) {
+      // Fallback: no embedding, pick first keyword
+      const { data: keywords } = await adminClient
+        .from("nodes")
+        .select("id, title")
+        .eq("creator_id", user.id)
+        .eq("type", "keyword")
+        .limit(1);
+
+      const fallbackId = keywords?.[0]?.id || null;
+      if (fallbackId) {
+        await adminClient.from("captures").update({ connected_to: fallbackId }).eq("id", capture_id);
+      }
+
+      return new Response(
+        JSON.stringify({ keyword_id: fallbackId, keyword_title: keywords?.[0]?.title || "", reason: "no_embedding_fallback", has_embedding: false }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    // Build capture context
-    let captureContext = `제목: ${title || "(없음)"}`;
-    if (description) captureContext += `\n메모: ${description}`;
-    if (content_type) captureContext += `\n형식: ${content_type}`;
-    if (content_url) captureContext += `\nURL: ${content_url}`;
-
-    const keywordList = keywords.map((k) => `- ID: "${k.id}", 키워드: "${k.title}"`).join("\n");
-
-    // Run AI keyword assignment and embedding generation in parallel
-    const aiPromise = fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `당신은 캡처된 콘텐츠를 분석하여 가장 관련 있는 키워드를 선택하는 분류 전문가입니다.
-유저의 키워드 목록과 캡처 내용을 비교하여 의미적으로 가장 관련이 깊은 키워드 하나를 선택하세요.
-반드시 제공된 키워드 목록 중 하나의 ID를 선택해야 합니다.`,
-          },
-          {
-            role: "user",
-            content: `다음 캡처 내용을 분석하고, 아래 키워드 목록 중 가장 관련 있는 키워드를 선택해주세요.
-
-## 캡처 내용
-${captureContext}
-
-## 키워드 목록
-${keywordList}`,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "select_keyword",
-              description: "캡처와 가장 관련 있는 키워드를 선택합니다.",
-              parameters: {
-                type: "object",
-                properties: {
-                  keyword_id: {
-                    type: "string",
-                    description: "선택된 키워드의 ID (UUID)",
-                  },
-                  reason: {
-                    type: "string",
-                    description: "선택 이유 (짧게)",
-                  },
-                },
-                required: ["keyword_id", "reason"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "select_keyword" } },
-      }),
+    // Find most similar node using pgvector match_nodes function
+    const { data: matchedNodes, error: matchError } = await adminClient.rpc("match_nodes", {
+      query_embedding: JSON.stringify(embedding),
+      match_threshold: 0.0,
+      match_count: 1,
+      user_id: user.id,
     });
 
-    // Generate embedding text from capture content
-    const embeddingText = [title, description, content_url].filter(Boolean).join(" ");
-    const embeddingPromise = openaiApiKey
-      ? generateEmbedding(embeddingText, openaiApiKey)
-      : Promise.resolve(null);
-
-    const [aiResponse, embedding] = await Promise.all([aiPromise, embeddingPromise]);
-
-    // Process AI keyword response
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errText);
-
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited, please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`AI gateway error: ${aiResponse.status}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-
     let selectedKeywordId: string | null = null;
+    let selectedKeywordTitle = "";
     let reason = "";
 
-    if (toolCall?.function?.arguments) {
-      try {
-        const args = JSON.parse(toolCall.function.arguments);
-        selectedKeywordId = args.keyword_id;
-        reason = args.reason || "";
-      } catch {
-        console.error("Failed to parse tool call arguments");
+    if (!matchError && matchedNodes && matchedNodes.length > 0) {
+      const best = matchedNodes[0];
+      selectedKeywordId = best.id;
+      selectedKeywordTitle = best.title;
+      reason = `embedding similarity: ${best.similarity.toFixed(3)}`;
+      console.log(`Matched node "${best.title}" (${best.type}) with similarity ${best.similarity.toFixed(3)}`);
+    } else {
+      // Fallback: no matching nodes (maybe no node embeddings yet), pick first keyword
+      console.log("No node embeddings found, falling back to first keyword");
+      const { data: keywords } = await adminClient
+        .from("nodes")
+        .select("id, title")
+        .eq("creator_id", user.id)
+        .eq("type", "keyword")
+        .limit(1);
+
+      if (keywords && keywords.length > 0) {
+        selectedKeywordId = keywords[0].id;
+        selectedKeywordTitle = keywords[0].title;
+        reason = "fallback_no_node_embeddings";
       }
-    }
-
-    if (selectedKeywordId && !keywords.find((k) => k.id === selectedKeywordId)) {
-      console.warn("AI selected invalid keyword, falling back to first");
-      selectedKeywordId = keywords[0].id;
-    }
-
-    if (!selectedKeywordId) {
-      selectedKeywordId = keywords[0].id;
     }
 
     // Update capture with keyword and embedding
-    const updateData: Record<string, unknown> = { connected_to: selectedKeywordId };
-    if (embedding) {
-      updateData.embedding = JSON.stringify(embedding);
+    const updateData: Record<string, unknown> = { embedding: JSON.stringify(embedding) };
+    if (selectedKeywordId) {
+      updateData.connected_to = selectedKeywordId;
     }
 
     const { error: updateError } = await adminClient
@@ -217,19 +148,17 @@ ${keywordList}`,
       console.error("Failed to update capture:", updateError);
     }
 
-    const selectedKeyword = keywords.find((k) => k.id === selectedKeywordId);
-
     return new Response(
       JSON.stringify({
         keyword_id: selectedKeywordId,
-        keyword_title: selectedKeyword?.title || "",
+        keyword_title: selectedKeywordTitle,
         reason,
-        has_embedding: !!embedding,
+        has_embedding: true,
       }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (e) {
     console.error("assign-capture-keyword error:", e);
@@ -238,7 +167,7 @@ ${keywordList}`,
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });
