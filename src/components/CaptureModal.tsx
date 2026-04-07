@@ -20,10 +20,15 @@ function extractDomain(url: string): string {
   }
 }
 
-interface LinkPreview {
+interface LinkMetadata {
   title: string;
   thumbnail: string;
   description: string;
+  author?: string;
+  keywords?: string[];
+  category?: string;
+  site_name?: string;
+  type?: string;
 }
 
 export function CaptureModal() {
