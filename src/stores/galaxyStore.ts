@@ -197,8 +197,14 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Always include "기타" keyword for low-similarity captures
+    const allKeywords = [...validKeywords];
+    if (!allKeywords.includes("기타")) {
+      allKeywords.push("기타");
+    }
+
     // Save keyword nodes to DB
-    const rows = validKeywords.map((kw) => ({ title: kw, creator_id: user.id }));
+    const rows = allKeywords.map((kw) => ({ title: kw, creator_id: user.id }));
     const { data: inserted, error } = await supabase.from("nodes").insert(rows).select();
     if (error || !inserted) {
       console.error("Failed to save nodes:", error);
