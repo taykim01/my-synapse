@@ -37,6 +37,7 @@ export function CaptureModal() {
   const [saving, setSaving] = useState(false);
   const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const titleGenPromiseRef = useRef<Promise<void> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const contentType = captureForm.content_type;
