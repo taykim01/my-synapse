@@ -381,7 +381,7 @@ export function CaptureModal() {
         {saving && (
           <div className="mt-4 flex items-center gap-2 text-sm text-accent animate-pulse">
             <Sparkles size={16} className="animate-spin" />
-            AI가 관련 키워드를 찾고 있습니다...
+            {fetchingMeta ? '제목을 생성하고 있습니다...' : 'AI가 관련 키워드를 찾고 있습니다...'}
           </div>
         )}
 
