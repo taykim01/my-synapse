@@ -160,7 +160,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
   isAddingCapture: false,
   searchQuery: "",
   searchResults: [],
-  captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "" },
+  captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "", metadata: null },
 
   initFromDB: async () => {
     const {
@@ -341,7 +341,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     set({
       nodes: newNodes,
       links: newLinks,
-      captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "" },
+      captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "", metadata: null },
       isAddingCapture: false,
     });
 
