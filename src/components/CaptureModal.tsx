@@ -67,14 +67,23 @@ export function CaptureModal() {
         body: { url },
       });
       if (!error && data) {
-        setLinkPreview({
+        const preview: LinkMetadata = {
           title: data.title || '',
           thumbnail: data.thumbnail || '',
           description: data.description || '',
-        });
+          author: data.author,
+          keywords: data.keywords,
+          category: data.category,
+          site_name: data.site_name,
+          type: data.type,
+        };
+        setLinkPreview(preview);
         if (data.title) {
           setCaptureForm({ title: data.title });
         }
+        // Save full metadata for embedding
+        const { title: _t, thumbnail: _th, ...metadataForCapture } = preview;
+        setCaptureForm({ metadata: metadataForCapture as Record<string, unknown> });
       }
     } catch (e) {
       console.error('Failed to fetch metadata:', e);
