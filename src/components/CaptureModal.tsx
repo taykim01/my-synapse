@@ -40,7 +40,7 @@ export function CaptureModal() {
   const [uploading, setUploading] = useState(false);
   const [fetchingMeta, setFetchingMeta] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+  const [linkPreview, setLinkPreview] = useState<LinkMetadata | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const titleGenPromiseRef = useRef<Promise<void> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
