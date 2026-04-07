@@ -49,7 +49,7 @@ const Index = () => {
   }
 
   return (
-    <div className="relative w-full h-screen bg-background overflow-hidden">
+    <div className="relative w-full h-screen bg-background overflow-hidden" style={{ overflow: 'hidden' }}>
       <GalaxyCanvas />
 
       {/* Header */}
