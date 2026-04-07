@@ -49,6 +49,7 @@ interface GalaxyState {
     content_url: string;
     source: string;
     tag: string;
+    metadata: Record<string, unknown> | null;
   };
 
   initFromDB: () => Promise<void>;
