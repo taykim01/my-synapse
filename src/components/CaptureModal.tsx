@@ -20,10 +20,15 @@ function extractDomain(url: string): string {
   }
 }
 
-interface LinkPreview {
+interface LinkMetadata {
   title: string;
   thumbnail: string;
   description: string;
+  author?: string;
+  keywords?: string[];
+  category?: string;
+  site_name?: string;
+  type?: string;
 }
 
 export function CaptureModal() {
@@ -35,7 +40,7 @@ export function CaptureModal() {
   const [uploading, setUploading] = useState(false);
   const [fetchingMeta, setFetchingMeta] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+  const [linkPreview, setLinkPreview] = useState<LinkMetadata | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const titleGenPromiseRef = useRef<Promise<void> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -62,14 +67,23 @@ export function CaptureModal() {
         body: { url },
       });
       if (!error && data) {
-        setLinkPreview({
+        const preview: LinkMetadata = {
           title: data.title || '',
           thumbnail: data.thumbnail || '',
           description: data.description || '',
-        });
+          author: data.author,
+          keywords: data.keywords,
+          category: data.category,
+          site_name: data.site_name,
+          type: data.type,
+        };
+        setLinkPreview(preview);
         if (data.title) {
           setCaptureForm({ title: data.title });
         }
+        // Save full metadata for embedding
+        const { title: _t, thumbnail: _th, ...metadataForCapture } = preview;
+        setCaptureForm({ metadata: metadataForCapture as Record<string, unknown> });
       }
     } catch (e) {
       console.error('Failed to fetch metadata:', e);

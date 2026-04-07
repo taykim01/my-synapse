@@ -38,7 +38,6 @@ async function generateEmbedding(text: string, openaiApiKey: string): Promise<nu
 }
 
 async function getOrCreateMiscKeyword(adminClient: any, userId: string, openaiApiKey: string): Promise<{ id: string; title: string }> {
-  // Check if "기타" keyword already exists for this user
   const { data: existing } = await adminClient
     .from("nodes")
     .select("id, title")
@@ -51,7 +50,6 @@ async function getOrCreateMiscKeyword(adminClient: any, userId: string, openaiAp
     return { id: existing[0].id, title: existing[0].title };
   }
 
-  // Create "기타" keyword
   const { data: created, error } = await adminClient
     .from("nodes")
     .insert({ title: "기타", creator_id: userId, type: "keyword" })
@@ -63,7 +61,6 @@ async function getOrCreateMiscKeyword(adminClient: any, userId: string, openaiAp
     throw new Error("Failed to create 기타 keyword");
   }
 
-  // Generate embedding for the new node
   const embedding = await generateEmbedding("기타", openaiApiKey);
   if (embedding) {
     await adminClient
@@ -76,13 +73,69 @@ async function getOrCreateMiscKeyword(adminClient: any, userId: string, openaiAp
   return { id: created.id, title: created.title };
 }
 
+/**
+ * Build an optimized string for embedding generation.
+ * Prioritizes: title, description, keywords/tags, category, author, site context.
+ * Keeps it concise but semantically rich.
+ */
+function buildEmbeddingText(params: {
+  title?: string;
+  description?: string;
+  content_type?: string;
+  content_url?: string;
+  metadata?: Record<string, unknown>;
+}): string {
+  const parts: string[] = [];
+
+  // Title is the strongest signal
+  if (params.title) {
+    parts.push(params.title);
+  }
+
+  const meta = params.metadata || {};
+
+  // Description adds context (truncate to ~300 chars to avoid noise)
+  const desc = (meta.description as string) || params.description || '';
+  if (desc) {
+    parts.push(desc.slice(0, 300));
+  }
+
+  // Keywords/tags are highly relevant for categorization
+  const keywords = meta.keywords as string[] | undefined;
+  if (keywords && keywords.length > 0) {
+    parts.push(keywords.join(', '));
+  }
+
+  // Category directly helps classification
+  if (meta.category) {
+    parts.push(`카테고리: ${meta.category}`);
+  }
+
+  // Author/channel provides context (e.g. music channel → music)
+  if (meta.author) {
+    parts.push(`${meta.author}`);
+  }
+
+  // Site name provides domain context
+  if (meta.site_name) {
+    parts.push(`${meta.site_name}`);
+  }
+
+  // Content type as context
+  if (meta.type) {
+    parts.push(`${meta.type}`);
+  }
+
+  return parts.filter(Boolean).join(' | ');
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { capture_id, title, description, content_type, content_url } = await req.json();
+    const { capture_id, title, description, content_type, content_url, metadata } = await req.json();
 
     if (!capture_id) {
       return new Response(JSON.stringify({ error: "capture_id is required" }), {
@@ -114,14 +167,18 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Generate embedding from capture content
-    const embeddingText = [title, description, content_url].filter(Boolean).join(" ");
+    // Build optimized embedding text from all available data
+    const embeddingText = buildEmbeddingText({ title, description, content_type, content_url, metadata });
+    console.log("Embedding text:", embeddingText.slice(0, 200));
+
     const embedding = await generateEmbedding(embeddingText, openaiApiKey);
 
     if (!embedding) {
-      // Fallback: no embedding, assign to "기타"
       const misc = await getOrCreateMiscKeyword(adminClient, user.id, openaiApiKey);
-      await adminClient.from("captures").update({ connected_to: misc.id }).eq("id", capture_id);
+      // Save metadata even on fallback
+      const fallbackUpdate: Record<string, unknown> = { connected_to: misc.id };
+      if (metadata) fallbackUpdate.metadata = metadata;
+      await adminClient.from("captures").update(fallbackUpdate).eq("id", capture_id);
 
       return new Response(
         JSON.stringify({ keyword_id: misc.id, keyword_title: misc.title, reason: "no_embedding_fallback_misc", has_embedding: false }),
@@ -129,7 +186,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Find most similar node using pgvector match_nodes function
+    // Find most similar node
     const { data: matchedNodes, error: matchError } = await adminClient.rpc("match_nodes", {
       query_embedding: JSON.stringify(embedding),
       match_threshold: 0.0,
@@ -143,8 +200,6 @@ Deno.serve(async (req) => {
 
     if (!matchError && matchedNodes && matchedNodes.length > 0) {
       const best = matchedNodes[0];
-
-      // Filter out "기타" from similarity matching — it should only be used as fallback
       const isEtcNode = best.title === "기타";
 
       if (!isEtcNode && best.similarity >= MIN_SIMILARITY_THRESHOLD) {
@@ -153,7 +208,6 @@ Deno.serve(async (req) => {
         reason = `embedding similarity: ${best.similarity.toFixed(3)}`;
         console.log(`Matched node "${best.title}" (${best.type}) with similarity ${best.similarity.toFixed(3)}`);
       } else {
-        // Similarity too low or matched "기타" → assign to "기타"
         console.log(`Best match "${best.title}" similarity ${best.similarity.toFixed(3)} below threshold ${MIN_SIMILARITY_THRESHOLD}, assigning to 기타`);
         const misc = await getOrCreateMiscKeyword(adminClient, user.id, openaiApiKey);
         selectedKeywordId = misc.id;
@@ -161,7 +215,6 @@ Deno.serve(async (req) => {
         reason = `low_similarity_fallback (best: ${best.title} ${best.similarity.toFixed(3)})`;
       }
     } else {
-      // No matching nodes at all → assign to "기타"
       console.log("No node embeddings found, assigning to 기타");
       const misc = await getOrCreateMiscKeyword(adminClient, user.id, openaiApiKey);
       selectedKeywordId = misc.id;
@@ -169,10 +222,13 @@ Deno.serve(async (req) => {
       reason = "no_node_embeddings_fallback_misc";
     }
 
-    // Update capture with keyword and embedding
+    // Update capture with keyword, embedding, and metadata
     const updateData: Record<string, unknown> = { embedding: JSON.stringify(embedding) };
     if (selectedKeywordId) {
       updateData.connected_to = selectedKeywordId;
+    }
+    if (metadata) {
+      updateData.metadata = metadata;
     }
 
     const { error: updateError } = await adminClient

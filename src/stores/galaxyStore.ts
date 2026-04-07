@@ -49,6 +49,7 @@ interface GalaxyState {
     content_url: string;
     source: string;
     tag: string;
+    metadata: Record<string, unknown> | null;
   };
 
   initFromDB: () => Promise<void>;
@@ -159,7 +160,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
   isAddingCapture: false,
   searchQuery: "",
   searchResults: [],
-  captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "" },
+  captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "", metadata: null },
 
   initFromDB: async () => {
     const {
@@ -279,6 +280,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
           description: captureForm.description || "",
           content_type: captureForm.content_type,
           content_url: captureForm.content_url || "",
+          metadata: captureForm.metadata || undefined,
         },
       });
       if (!aiError && aiResult?.keyword_id) {
@@ -340,7 +342,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     set({
       nodes: newNodes,
       links: newLinks,
-      captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "" },
+      captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "", metadata: null },
       isAddingCapture: false,
     });
 
@@ -418,6 +420,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
         content_url: "",
         source: "",
         tag: "AI제안_태그",
+        metadata: null,
       },
     });
   },

@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       captures: {
         Row: {
+          ai_caption: string | null
           connected_to: string | null
           content_type: string
           content_url: string | null
@@ -24,10 +25,12 @@ export type Database = {
           description: string | null
           embedding: string | null
           id: string
+          metadata: Json | null
           source: string | null
           title: string
         }
         Insert: {
+          ai_caption?: string | null
           connected_to?: string | null
           content_type?: string
           content_url?: string | null
@@ -36,10 +39,12 @@ export type Database = {
           description?: string | null
           embedding?: string | null
           id?: string
+          metadata?: Json | null
           source?: string | null
           title: string
         }
         Update: {
+          ai_caption?: string | null
           connected_to?: string | null
           content_type?: string
           content_url?: string | null
@@ -48,6 +53,7 @@ export type Database = {
           description?: string | null
           embedding?: string | null
           id?: string
+          metadata?: Json | null
           source?: string | null
           title?: string
         }
@@ -158,6 +164,7 @@ export type Database = {
       search_captures: {
         Args: { search_query: string; user_id: string }
         Returns: {
+          ai_caption: string | null
           connected_to: string | null
           content_type: string
           content_url: string | null
@@ -166,6 +173,7 @@ export type Database = {
           description: string | null
           embedding: string | null
           id: string
+          metadata: Json | null
           source: string | null
           title: string
         }[]
