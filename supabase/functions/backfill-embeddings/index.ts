@@ -54,7 +54,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Auth check
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader || "" } },
     });
@@ -67,76 +66,75 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    let capturesProcessed = 0, capturesFailed = 0, capturesTotal = 0;
+    let nodesProcessed = 0, nodesFailed = 0, nodesTotal = 0;
 
-    // Find captures without embeddings for this user
-    const { data: captures, error: fetchError } = await adminClient
+    // 1. Backfill capture embeddings
+    const { data: captures } = await adminClient
       .from("captures")
       .select("id, title, description, content_url")
       .eq("creator_id", user.id)
       .is("embedding", null);
 
-    if (fetchError) {
-      throw new Error(`Failed to fetch captures: ${fetchError.message}`);
+    if (captures && captures.length > 0) {
+      capturesTotal = captures.length;
+      console.log(`Found ${capturesTotal} captures without embeddings`);
+
+      for (let i = 0; i < captures.length; i += 5) {
+        const batch = captures.slice(i, i + 5);
+        await Promise.all(
+          batch.map(async (capture) => {
+            const text = [capture.title, capture.description, capture.content_url].filter(Boolean).join(" ");
+            const embedding = await generateEmbedding(text, openaiApiKey);
+            if (!embedding) { capturesFailed++; return; }
+            const { error } = await adminClient.from("captures").update({ embedding: JSON.stringify(embedding) }).eq("id", capture.id);
+            if (error) { capturesFailed++; } else { capturesProcessed++; }
+          })
+        );
+      }
     }
 
-    if (!captures || captures.length === 0) {
-      return new Response(JSON.stringify({ message: "No captures need embeddings", processed: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // 2. Backfill node embeddings
+    const { data: nodes } = await adminClient
+      .from("nodes")
+      .select("id, title")
+      .eq("creator_id", user.id)
+      .is("embedding", null);
+
+    if (nodes && nodes.length > 0) {
+      nodesTotal = nodes.length;
+      console.log(`Found ${nodesTotal} nodes without embeddings`);
+
+      for (let i = 0; i < nodes.length; i += 5) {
+        const batch = nodes.slice(i, i + 5);
+        await Promise.all(
+          batch.map(async (node) => {
+            const embedding = await generateEmbedding(node.title, openaiApiKey);
+            if (!embedding) { nodesFailed++; return; }
+            const { error } = await adminClient.from("nodes").update({ embedding: JSON.stringify(embedding) }).eq("id", node.id);
+            if (error) { nodesFailed++; } else { nodesProcessed++; }
+          })
+        );
+      }
     }
 
-    console.log(`Found ${captures.length} captures without embeddings`);
-
-    let processed = 0;
-    let failed = 0;
-
-    // Process in batches of 5 to avoid rate limits
-    for (let i = 0; i < captures.length; i += 5) {
-      const batch = captures.slice(i, i + 5);
-      const results = await Promise.all(
-        batch.map(async (capture) => {
-          const text = [capture.title, capture.description, capture.content_url]
-            .filter(Boolean)
-            .join(" ");
-
-          const embedding = await generateEmbedding(text, openaiApiKey);
-          if (!embedding) {
-            failed++;
-            return null;
-          }
-
-          const { error: updateError } = await adminClient
-            .from("captures")
-            .update({ embedding: JSON.stringify(embedding) })
-            .eq("id", capture.id);
-
-          if (updateError) {
-            console.error(`Failed to update capture ${capture.id}:`, updateError);
-            failed++;
-            return null;
-          }
-
-          processed++;
-          console.log(`Embedded: ${capture.title} (${capture.id})`);
-          return capture.id;
-        })
-      );
-    }
-
-    console.log(`Backfill complete: ${processed} processed, ${failed} failed`);
+    console.log(`Backfill complete: captures ${capturesProcessed}/${capturesTotal}, nodes ${nodesProcessed}/${nodesTotal}`);
 
     return new Response(
-      JSON.stringify({ processed, failed, total: captures.length }),
+      JSON.stringify({
+        processed: capturesProcessed + nodesProcessed,
+        failed: capturesFailed + nodesFailed,
+        total: capturesTotal + nodesTotal,
+        captures: { processed: capturesProcessed, failed: capturesFailed, total: capturesTotal },
+        nodes: { processed: nodesProcessed, failed: nodesFailed, total: nodesTotal },
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
     console.error("backfill-embeddings error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

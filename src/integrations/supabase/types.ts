@@ -65,6 +65,7 @@ export type Database = {
         Row: {
           created_at: string
           creator_id: string
+          embedding: string | null
           id: string
           parent_id: string | null
           title: string
@@ -73,6 +74,7 @@ export type Database = {
         Insert: {
           created_at?: string
           creator_id: string
+          embedding?: string | null
           id?: string
           parent_id?: string | null
           title: string
@@ -81,6 +83,7 @@ export type Database = {
         Update: {
           created_at?: string
           creator_id?: string
+          embedding?: string | null
           id?: string
           parent_id?: string | null
           title?: string
@@ -135,6 +138,21 @@ export type Database = {
           id: string
           similarity: number
           title: string
+        }[]
+      }
+      match_nodes: {
+        Args: {
+          match_count: number
+          match_threshold: number
+          query_embedding: string
+          user_id: string
+        }
+        Returns: {
+          id: string
+          parent_id: string
+          similarity: number
+          title: string
+          type: string
         }[]
       }
       search_captures: {
