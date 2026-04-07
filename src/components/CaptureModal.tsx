@@ -37,6 +37,7 @@ export function CaptureModal() {
   const [saving, setSaving] = useState(false);
   const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const titleGenPromiseRef = useRef<Promise<void> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const contentType = captureForm.content_type;
@@ -124,35 +125,43 @@ export function CaptureModal() {
       // Auto-generate title for images via AI
       if (contentType === 'IMAGE') {
         setFetchingMeta(true);
-        try {
-          const { data, error: aiError } = await supabase.functions.invoke('generate-image-title', {
-            body: { image_url: publicUrl },
-          });
-          if (!aiError && data?.title) {
-            setCaptureForm({ title: data.title });
+        const promise = (async () => {
+          try {
+            const { data, error: aiError } = await supabase.functions.invoke('generate-image-title', {
+              body: { image_url: publicUrl },
+            });
+            if (!aiError && data?.title) {
+              setCaptureForm({ title: data.title });
+            }
+          } catch (err) {
+            console.error('Image title generation failed:', err);
+          } finally {
+            setFetchingMeta(false);
+            titleGenPromiseRef.current = null;
           }
-        } catch (err) {
-          console.error('Image title generation failed:', err);
-        } finally {
-          setFetchingMeta(false);
-        }
+        })();
+        titleGenPromiseRef.current = promise;
       }
 
       // Auto-generate title for files via AI
       if (contentType === 'FILE') {
         setFetchingMeta(true);
-        try {
-          const { data, error: aiError } = await supabase.functions.invoke('generate-file-title', {
-            body: { file_url: publicUrl, file_name: file.name },
-          });
-          if (!aiError && data?.title) {
-            setCaptureForm({ title: data.title });
+        const promise = (async () => {
+          try {
+            const { data, error: aiError } = await supabase.functions.invoke('generate-file-title', {
+              body: { file_url: publicUrl, file_name: file.name },
+            });
+            if (!aiError && data?.title) {
+              setCaptureForm({ title: data.title });
+            }
+          } catch (err) {
+            console.error('File title generation failed:', err);
+          } finally {
+            setFetchingMeta(false);
+            titleGenPromiseRef.current = null;
           }
-        } catch (err) {
-          console.error('File title generation failed:', err);
-        } finally {
-          setFetchingMeta(false);
-        }
+        })();
+        titleGenPromiseRef.current = promise;
       }
     } finally {
       setUploading(false);
@@ -372,7 +381,7 @@ export function CaptureModal() {
         {saving && (
           <div className="mt-4 flex items-center gap-2 text-sm text-accent animate-pulse">
             <Sparkles size={16} className="animate-spin" />
-            AI가 관련 키워드를 찾고 있습니다...
+            {fetchingMeta ? '제목을 생성하고 있습니다...' : 'AI가 관련 키워드를 찾고 있습니다...'}
           </div>
         )}
 
@@ -384,6 +393,10 @@ export function CaptureModal() {
             onClick={async () => {
               setSaving(true);
               try {
+                // Wait for title generation if still in progress
+                if (titleGenPromiseRef.current) {
+                  await titleGenPromiseRef.current;
+                }
                 const result = await addCapture();
                 if (result?.keyword_title) {
                   toast({ title: '캡처 완료', description: `"${result.keyword_title}" 키워드에 연결되었습니다.` });
