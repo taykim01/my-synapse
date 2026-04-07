@@ -199,17 +199,20 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Build optimized embedding text from all available data
-    const embeddingText = buildEmbeddingText({ title, description, content_type, content_url, metadata });
+    // Step 1: Generate AI category caption
+    const aiCaption = await generateCategoryCaption({ title, description, content_type, metadata });
+
+    // Step 2: Embed the caption (or fallback to raw metadata)
+    const embeddingText = aiCaption || buildFallbackEmbeddingText({ title, description, metadata });
     console.log("Embedding text:", embeddingText.slice(0, 200));
 
     const embedding = await generateEmbedding(embeddingText, openaiApiKey);
 
     if (!embedding) {
       const misc = await getOrCreateMiscKeyword(adminClient, user.id, openaiApiKey);
-      // Save metadata even on fallback
       const fallbackUpdate: Record<string, unknown> = { connected_to: misc.id };
       if (metadata) fallbackUpdate.metadata = metadata;
+      if (aiCaption) fallbackUpdate.ai_caption = aiCaption;
       await adminClient.from("captures").update(fallbackUpdate).eq("id", capture_id);
 
       return new Response(
