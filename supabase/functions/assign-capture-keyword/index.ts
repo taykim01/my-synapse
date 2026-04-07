@@ -257,13 +257,16 @@ Deno.serve(async (req) => {
       reason = "no_node_embeddings_fallback_misc";
     }
 
-    // Update capture with keyword, embedding, and metadata
+    // Update capture with keyword, embedding, metadata, and AI caption
     const updateData: Record<string, unknown> = { embedding: JSON.stringify(embedding) };
     if (selectedKeywordId) {
       updateData.connected_to = selectedKeywordId;
     }
     if (metadata) {
       updateData.metadata = metadata;
+    }
+    if (aiCaption) {
+      updateData.ai_caption = aiCaption;
     }
 
     const { error: updateError } = await adminClient
