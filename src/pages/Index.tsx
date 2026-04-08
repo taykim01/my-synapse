@@ -66,14 +66,6 @@ const Index = () => {
           >
             <LogOut size={18} />
           </button>
-          <button
-            onClick={handleBackfill}
-            disabled={isBackfilling}
-            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            title="기존 캡처에 임베딩 일괄 생성"
-          >
-            <Zap size={18} className={isBackfilling ? 'animate-pulse' : ''} />
-          </button>
         </div>
 
         {/* Search */}
