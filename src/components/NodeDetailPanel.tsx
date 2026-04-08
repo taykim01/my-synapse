@@ -384,7 +384,8 @@ export function NodeDetailPanel() {
             </>
           )}
 
-          {displayNode.content_type === 'TEXT' && isEditingDesc ? (
+          {/* Description — editable for ALL content types */}
+          {isEditingDesc ? (
             <div className="flex-1 flex flex-col overflow-hidden mb-4">
               <textarea value={editDesc} onChange={e => setEditDesc(e.target.value)} className="w-full flex-1 bg-muted/50 border border-border rounded-xl p-4 text-sm text-foreground focus:outline-none focus:border-primary resize-none" autoFocus />
               <div className="flex gap-2 mt-2 shrink-0">
@@ -397,47 +398,40 @@ export function NodeDetailPanel() {
           ) : displayNode.description ? (
             <div className="flex-1 overflow-y-auto mb-4 group/desc relative">
               <p className="text-muted-foreground text-sm whitespace-pre-wrap leading-relaxed bg-muted/50 p-4 rounded-xl border border-border h-full">{displayNode.description}</p>
-              {displayNode.content_type === 'TEXT' && (
-                <button onClick={() => { setEditDesc(displayNode.description || ''); setIsEditingDesc(true); }} className="absolute top-2 right-2 opacity-0 group-hover/desc:opacity-100 text-muted-foreground hover:text-foreground transition-opacity bg-card/80 rounded p-1" title="내용 수정">
-                  <Pencil size={12} />
-                </button>
-              )}
+              <button onClick={() => { setEditDesc(displayNode.description || ''); setIsEditingDesc(true); }} className="absolute top-2 right-2 opacity-0 group-hover/desc:opacity-100 text-muted-foreground hover:text-foreground transition-opacity bg-card/80 rounded p-1" title="내용 수정">
+                <Pencil size={12} />
+              </button>
             </div>
-          ) : displayNode.content_type === 'TEXT' ? (
+          ) : (
             <div className="flex-1 mb-4">
-              <button onClick={() => { setEditDesc(''); setIsEditingDesc(true); }} className="w-full h-full text-center py-6 bg-muted/50 rounded-xl border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors">+ 내용 추가</button>
-            </div>
-          ) : null}
-
-          {displayNode.content_type !== 'TEXT' && displayNode.description && (
-            <div className="flex-1 overflow-y-auto mb-6">
-              <p className="text-muted-foreground text-sm whitespace-pre-wrap leading-relaxed bg-muted/50 p-4 rounded-xl border border-border">{displayNode.description}</p>
+              <button onClick={() => { setEditDesc(''); setIsEditingDesc(true); }} className="w-full text-center py-6 bg-muted/50 rounded-xl border border-dashed border-border text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors">+ 메모 추가</button>
             </div>
           )}
 
           {displayNode.tags && displayNode.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
+            <div className="flex flex-wrap gap-2 pt-4 border-t border-border mb-4">
               {displayNode.tags.map((tag, idx) => (
                 <span key={idx} className="bg-synapse-indigo/20 text-synapse-indigo border border-synapse-indigo/30 px-3 py-1.5 rounded-full text-xs shadow-[0_0_8px_hsl(239,84%,67%,0.3)]">#{tag}</span>
               ))}
             </div>
           )}
 
-          {/* Move capture */}
-          {showMovePicker ? (
-            <MoveCapturePicker captureId={displayNode.id} currentNodeId={displayNode.connected_to || ''} onClose={() => setShowMovePicker(false)} />
-          ) : (
-            <button
-              onClick={() => setShowMovePicker(true)}
-              className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-sm mb-2"
-            >
-              <ArrowRight size={14} /> 다른 키워드로 이동
+          {/* Bottom action buttons */}
+          <div className="mt-auto space-y-2 pt-2">
+            {showMovePicker ? (
+              <MoveCapturePicker captureId={displayNode.id} currentNodeId={displayNode.connected_to || ''} onClose={() => setShowMovePicker(false)} />
+            ) : (
+              <button
+                onClick={() => setShowMovePicker(true)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-sm"
+              >
+                <ArrowRight size={14} /> 다른 키워드로 이동
+              </button>
+            )}
+            <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50">
+              <Trash2 size={14} /> {deleting ? '삭제 중...' : '캡처 삭제'}
             </button>
-          )}
-
-          <button onClick={handleDelete} disabled={deleting} className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50">
-            <Trash2 size={14} /> {deleting ? '삭제 중...' : '캡처 삭제'}
-          </button>
+          </div>
         </>
       )}
 
