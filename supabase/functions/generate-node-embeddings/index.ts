@@ -35,6 +35,41 @@ async function generateEmbedding(text: string, openaiApiKey: string): Promise<nu
   }
 }
 
+/**
+ * Build a hierarchical path string for embedding.
+ * For keywords: just the title.
+ * For detailed_keywords: "ParentKeyword-DetailedKeyword" or "ParentKeyword-ParentDK-DetailedKeyword"
+ */
+async function buildEmbeddingPath(
+  adminClient: any,
+  node: { id: string; title: string; type: string; parent_id: string | null },
+  userId: string,
+): Promise<string> {
+  if (node.type === "keyword" || !node.parent_id) {
+    return node.title;
+  }
+
+  // Build path by traversing up the parent chain
+  const pathParts: string[] = [node.title];
+  let currentParentId: string | null = node.parent_id;
+  const maxDepth = 10; // safety limit
+
+  for (let i = 0; i < maxDepth && currentParentId; i++) {
+    const { data: parent } = await adminClient
+      .from("nodes")
+      .select("id, title, type, parent_id")
+      .eq("id", currentParentId)
+      .eq("creator_id", userId)
+      .single();
+
+    if (!parent) break;
+    pathParts.unshift(parent.title);
+    currentParentId = parent.type === "keyword" ? null : parent.parent_id;
+  }
+
+  return pathParts.join("-");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -73,10 +108,10 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Get nodes
+    // Get nodes with type and parent_id
     const { data: nodes, error: fetchError } = await adminClient
       .from("nodes")
-      .select("id, title")
+      .select("id, title, type, parent_id")
       .in("id", node_ids)
       .eq("creator_id", user.id);
 
@@ -91,7 +126,10 @@ Deno.serve(async (req) => {
     let failed = 0;
 
     for (const node of nodes) {
-      const embedding = await generateEmbedding(node.title, openaiApiKey);
+      const embeddingText = await buildEmbeddingPath(adminClient, node, user.id);
+      console.log(`Embedding text for "${node.title}" (${node.type}): "${embeddingText}"`);
+
+      const embedding = await generateEmbedding(embeddingText, openaiApiKey);
       if (embedding) {
         const { error: updateError } = await adminClient
           .from("nodes")
