@@ -10,7 +10,7 @@ let _searchRequestId = 0;
 
 export interface GraphNode {
   id: string;
-  dbId?: string; // Supabase UUID
+  dbId?: string;
   type: "center" | "keyword" | "detailed_keyword" | "capture";
   title: string;
   description?: string;
@@ -19,7 +19,7 @@ export interface GraphNode {
   source?: string;
   tags?: string[];
   connected_to?: string;
-  similarity?: number; // semantic similarity score
+  similarity?: number;
   x: number;
   y: number;
   vx: number;
@@ -64,6 +64,10 @@ interface GalaxyState {
   openCaptureModal: () => void;
   backfillEmbeddings: () => Promise<{ processed: number; failed: number; total: number } | null>;
   updateCapture: (captureId: string, title: string, description?: string) => Promise<boolean>;
+  addKeyword: (title: string) => Promise<boolean>;
+  updateNode: (nodeId: string, title: string) => Promise<boolean>;
+  deleteNode: (nodeId: string) => Promise<boolean>;
+  moveCapture: (captureId: string, targetNodeId: string) => Promise<boolean>;
 }
 
 function buildGraphFromDB(
@@ -84,7 +88,6 @@ function buildGraphFromDB(
   const centerId = "center";
   nodes.push({ id: centerId, type: "center", title: "나", x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0 });
 
-  // Separate keywords and detailed_keywords
   const keywords = dbNodes.filter((n) => n.type === "keyword" || !n.type);
   const detailedKeywords = dbNodes.filter((n) => n.type === "detailed_keyword");
 
@@ -97,15 +100,11 @@ function buildGraphFromDB(
       title: n.title,
       x: Math.cos(angle) * 100,
       y: Math.sin(angle) * 100,
-      vx: 0,
-      vy: 0,
-      fx: 0,
-      fy: 0,
+      vx: 0, vy: 0, fx: 0, fy: 0,
     });
     links.push({ source: centerId, target: n.id });
   });
 
-  // Add detailed_keywords linked to their parent
   detailedKeywords.forEach((n) => {
     const parentId = n.parent_id || centerId;
     const parent = nodes.find((nd) => nd.id === parentId);
@@ -117,10 +116,7 @@ function buildGraphFromDB(
       connected_to: n.parent_id || undefined,
       x: (parent?.x || 0) + randomRange(-40, 40),
       y: (parent?.y || 0) + randomRange(-40, 40),
-      vx: 0,
-      vy: 0,
-      fx: 0,
-      fy: 0,
+      vx: 0, vy: 0, fx: 0, fy: 0,
     });
     links.push({ source: parentId, target: n.id });
   });
@@ -140,10 +136,7 @@ function buildGraphFromDB(
       connected_to: c.connected_to || undefined,
       x: (parent?.x || 0) + randomRange(-30, 30),
       y: (parent?.y || 0) + randomRange(-30, 30),
-      vx: 0,
-      vy: 0,
-      fx: 0,
-      fy: 0,
+      vx: 0, vy: 0, fx: 0, fy: 0,
     });
     links.push({ source: parentId, target: c.id });
   });
@@ -163,13 +156,8 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
   captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "", metadata: null },
 
   initFromDB: async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      set({ gameState: "onboarding" });
-      return;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { set({ gameState: "onboarding" }); return; }
 
     const { data: dbNodes } = await supabase
       .from("nodes")
@@ -193,41 +181,24 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const validKeywords = keywords.filter((k) => k.trim() !== "");
     if (validKeywords.length === 0) return;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Always include "기타" keyword for low-similarity captures
     const allKeywords = [...validKeywords];
-    if (!allKeywords.includes("기타")) {
-      allKeywords.push("기타");
-    }
+    if (!allKeywords.includes("기타")) allKeywords.push("기타");
 
-    // Save keyword nodes to DB
     const rows = allKeywords.map((kw) => ({ title: kw, creator_id: user.id }));
     const { data: inserted, error } = await supabase.from("nodes").insert(rows).select();
-    if (error || !inserted) {
-      console.error("Failed to save nodes:", error);
-      return;
-    }
+    if (error || !inserted) { console.error("Failed to save nodes:", error); return; }
 
     const { nodes, links } = buildGraphFromDB(
-      inserted.map((n) => ({
-        id: n.id,
-        title: n.title,
-        type: (n as any).type || "keyword",
-        parent_id: (n as any).parent_id || null,
-      })),
+      inserted.map((n) => ({ id: n.id, title: n.title, type: (n as any).type || "keyword", parent_id: (n as any).parent_id || null })),
       [],
     );
     set({ nodes, links, gameState: "exploring" });
 
-    // Generate embeddings for new keyword nodes (async, non-blocking)
     supabase.functions
-      .invoke("generate-node-embeddings", {
-        body: { node_ids: inserted.map((n) => n.id) },
-      })
+      .invoke("generate-node-embeddings", { body: { node_ids: inserted.map((n) => n.id) } })
       .then(({ data, error: embError }) => {
         if (embError) console.error("Node embedding generation failed:", embError);
         else console.log(`Node embeddings generated:`, data);
@@ -241,15 +212,11 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const isText = captureForm.content_type === "TEXT";
     if (isText && !captureForm.title.trim()) return null;
     if (!isText && !captureForm.content_url.trim()) return null;
-    const title =
-      captureForm.title.trim() || `${captureForm.content_type} 캡처 — ${new Date().toLocaleDateString("ko-KR")}`;
+    const title = captureForm.title.trim() || `${captureForm.content_type} 캡처 — ${new Date().toLocaleDateString("ko-KR")}`;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // Save capture to DB first (connected_to = null)
     const { data: insertedCapture, error: insertError } = await supabase
       .from("captures")
       .insert({
@@ -264,19 +231,14 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       .select()
       .single();
 
-    if (insertError || !insertedCapture) {
-      console.error("Failed to save capture:", insertError);
-      return null;
-    }
+    if (insertError || !insertedCapture) { console.error("Failed to save capture:", insertError); return null; }
 
-    // Call AI to assign keyword
     let assignedKeywordId: string | null = null;
     let assignedKeywordTitle = "";
     try {
       const { data: aiResult, error: aiError } = await supabase.functions.invoke("assign-capture-keyword", {
         body: {
-          capture_id: insertedCapture.id,
-          title,
+          capture_id: insertedCapture.id, title,
           description: captureForm.description || "",
           content_type: captureForm.content_type,
           content_url: captureForm.content_url || "",
@@ -287,11 +249,8 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
         assignedKeywordId = aiResult.keyword_id;
         assignedKeywordTitle = aiResult.keyword_title || "";
       }
-    } catch (e) {
-      console.error("AI keyword assignment failed:", e);
-    }
+    } catch (e) { console.error("AI keyword assignment failed:", e); }
 
-    // Find the target keyword node in local graph (or add it if edge function created "기타")
     const targetId = assignedKeywordId || nodes.find((n) => n.type === "keyword")?.id;
     if (!targetId) return null;
 
@@ -299,21 +258,13 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const newNodes = [...nodes];
     const newLinks = [...links];
 
-    // If the assigned keyword doesn't exist locally (e.g. "기타" created by edge function), add it
     if (!parentNode && assignedKeywordId) {
       const centerId = "center";
       const centerNode = nodes.find((n) => n.id === centerId);
       const newKeywordNode: GraphNode = {
-        id: assignedKeywordId,
-        dbId: assignedKeywordId,
-        type: "keyword",
-        title: assignedKeywordTitle,
-        x: (centerNode?.x || 0) + randomRange(-80, 80),
-        y: (centerNode?.y || 0) + randomRange(-80, 80),
-        vx: 0,
-        vy: 0,
-        fx: 0,
-        fy: 0,
+        id: assignedKeywordId, dbId: assignedKeywordId, type: "keyword", title: assignedKeywordTitle,
+        x: (centerNode?.x || 0) + randomRange(-80, 80), y: (centerNode?.y || 0) + randomRange(-80, 80),
+        vx: 0, vy: 0, fx: 0, fy: 0,
       };
       newNodes.push(newKeywordNode);
       newLinks.push({ source: centerId, target: assignedKeywordId });
@@ -321,32 +272,20 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     }
 
     newNodes.push({
-      id: insertedCapture.id,
-      dbId: insertedCapture.id,
-      type: "capture",
-      title,
-      description: captureForm.description,
-      content_type: captureForm.content_type,
-      content_url: captureForm.content_url,
-      source: captureForm.source,
-      connected_to: targetId,
-      x: (parentNode?.x || 0) + randomRange(-30, 30),
-      y: (parentNode?.y || 0) + randomRange(-30, 30),
-      vx: 0,
-      vy: 0,
-      fx: 0,
-      fy: 0,
+      id: insertedCapture.id, dbId: insertedCapture.id, type: "capture", title,
+      description: captureForm.description, content_type: captureForm.content_type,
+      content_url: captureForm.content_url, source: captureForm.source, connected_to: targetId,
+      x: (parentNode?.x || 0) + randomRange(-30, 30), y: (parentNode?.y || 0) + randomRange(-30, 30),
+      vx: 0, vy: 0, fx: 0, fy: 0,
     });
     newLinks.push({ source: targetId, target: insertedCapture.id });
 
     set({
-      nodes: newNodes,
-      links: newLinks,
+      nodes: newNodes, links: newLinks,
       captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "", metadata: null },
       isAddingCapture: false,
     });
 
-    // Check similarity and potentially create DetailedKeyword (async, non-blocking)
     supabase.functions
       .invoke("check-capture-similarity", {
         body: { capture_id: insertedCapture.id, node_id: targetId, threshold: SIMILARITY_THRESHOLD },
@@ -359,31 +298,17 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
         set((state) => {
           const updatedNodes = [...state.nodes];
           const updatedLinks = [...state.links];
-
-          // Add the new DetailedKeyword node
           const parentGraphNode = updatedNodes.find((n) => n.id === dk.parent_id);
           updatedNodes.push({
-            id: dk.id,
-            dbId: dk.id,
-            type: "detailed_keyword",
-            title: dk.title,
-            connected_to: dk.parent_id,
-            x: (parentGraphNode?.x || 0) + randomRange(-40, 40),
-            y: (parentGraphNode?.y || 0) + randomRange(-40, 40),
-            vx: 0,
-            vy: 0,
-            fx: 0,
-            fy: 0,
+            id: dk.id, dbId: dk.id, type: "detailed_keyword", title: dk.title, connected_to: dk.parent_id,
+            x: (parentGraphNode?.x || 0) + randomRange(-40, 40), y: (parentGraphNode?.y || 0) + randomRange(-40, 40),
+            vx: 0, vy: 0, fx: 0, fy: 0,
           });
           updatedLinks.push({ source: dk.parent_id, target: dk.id });
 
-          // Update moved captures: change connected_to and re-link
           movedIds.forEach((captureId) => {
             const captureNode = updatedNodes.find((n) => n.id === captureId);
-            if (captureNode) {
-              captureNode.connected_to = dk.id;
-            }
-            // Remove old link, add new
+            if (captureNode) captureNode.connected_to = dk.id;
             const oldLinkIdx = updatedLinks.findIndex((l) => l.target === captureId);
             if (oldLinkIdx >= 0) updatedLinks.splice(oldLinkIdx, 1);
             updatedLinks.push({ source: dk.id, target: captureId });
@@ -391,7 +316,6 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
           return { nodes: updatedNodes, links: updatedLinks };
         });
-
         console.log(`DetailedKeyword created: "${dk.title}", moved ${movedIds.length} captures`);
       })
       .catch((e) => console.error("Similarity check failed:", e));
@@ -399,61 +323,31 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     return { keyword_id: assignedKeywordId || undefined, keyword_title: assignedKeywordTitle || undefined };
   },
 
-  setSelectedNode: (node) => {
-    set((state) => ({
-      selectedNode: node,
-      activeNode: node || state.activeNode,
-    }));
-  },
-
+  setSelectedNode: (node) => set((state) => ({ selectedNode: node, activeNode: node || state.activeNode })),
   setIsAddingCapture: (v) => set({ isAddingCapture: v }),
-
   setCaptureForm: (form) => set((state) => ({ captureForm: { ...state.captureForm, ...form } })),
 
   openCaptureModal: () => {
     set({
       isAddingCapture: true,
-      captureForm: {
-        title: "",
-        description: "",
-        content_type: "TEXT",
-        content_url: "",
-        source: "",
-        tag: "AI제안_태그",
-        metadata: null,
-      },
+      captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "AI제안_태그", metadata: null },
     });
   },
 
   handleSearch: async (query: string) => {
     const q = query.trim();
     set({ searchQuery: query });
-    if (!q) {
-      set({ searchResults: [] });
-      return;
-    }
+    if (!q) { set({ searchResults: [] }); return; }
 
-    // Increment request ID to track latest request
     const requestId = ++_searchRequestId;
-
-    // Immediate local filtering for instant feedback
     const localResults = get().nodes.filter(
-      (n) =>
-        n.type !== "center" &&
-        (n.title.toLowerCase().includes(q.toLowerCase()) ||
-          (n.description && n.description.toLowerCase().includes(q.toLowerCase()))),
+      (n) => n.type !== "center" && (n.title.toLowerCase().includes(q.toLowerCase()) || (n.description && n.description.toLowerCase().includes(q.toLowerCase()))),
     );
     set({ searchResults: localResults });
 
-    // Then call server for text + semantic search
     try {
-      const { data, error } = await supabase.functions.invoke("search-captures", {
-        body: { query: q },
-      });
-
-      // Check if this is still the latest request
-      if (_searchRequestId !== requestId) return; // Stale response, discard
-
+      const { data, error } = await supabase.functions.invoke("search-captures", { body: { query: q } });
+      if (_searchRequestId !== requestId) return;
       if (error || !data) return;
 
       const { text_results = [], semantic_results = [] } = data;
@@ -461,93 +355,45 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       const merged: GraphNode[] = [];
       const existingNodes = get().nodes;
 
-      // Add text matches first
       for (const r of text_results) {
         if (!seen.has(r.id)) {
           seen.add(r.id);
           const existing = existingNodes.find((n) => n.id === r.id);
-          if (existing) {
-            merged.push(existing);
-          } else {
-            merged.push({
-              id: r.id,
-              dbId: r.id,
-              type: "capture",
-              title: r.title,
-              description: r.description || undefined,
-              content_type: r.content_type,
-              content_url: r.content_url || undefined,
-              source: r.source || undefined,
-              connected_to: r.connected_to || undefined,
-              x: 0,
-              y: 0,
-              vx: 0,
-              vy: 0,
-              fx: 0,
-              fy: 0,
-            });
-          }
+          if (existing) merged.push(existing);
+          else merged.push({ id: r.id, dbId: r.id, type: "capture", title: r.title, description: r.description || undefined, content_type: r.content_type, content_url: r.content_url || undefined, source: r.source || undefined, connected_to: r.connected_to || undefined, x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0 });
         }
       }
 
-      // Add semantic matches with similarity scores
       for (const r of semantic_results) {
         if (!seen.has(r.id)) {
           seen.add(r.id);
           const existing = existingNodes.find((n) => n.id === r.id);
-          if (existing) {
-            merged.push({ ...existing, similarity: r.similarity });
-          } else {
-            merged.push({
-              id: r.id,
-              dbId: r.id,
-              type: "capture",
-              title: r.title,
-              description: r.description || undefined,
-              content_type: r.content_type,
-              similarity: r.similarity,
-              x: 0,
-              y: 0,
-              vx: 0,
-              vy: 0,
-              fx: 0,
-              fy: 0,
-            });
-          }
+          if (existing) merged.push({ ...existing, similarity: r.similarity });
+          else merged.push({ id: r.id, dbId: r.id, type: "capture", title: r.title, description: r.description || undefined, content_type: r.content_type, similarity: r.similarity, x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0 });
         }
       }
 
-      // Also include local keyword node matches
       const keywordMatches = existingNodes.filter(
         (n) => n.type === "keyword" && n.title.toLowerCase().includes(q.toLowerCase()) && !seen.has(n.id),
       );
-
       set({ searchResults: [...merged, ...keywordMatches] });
-    } catch (e) {
-      console.error("Server search failed, using local results:", e);
-    }
+    } catch (e) { console.error("Server search failed, using local results:", e); }
   },
 
   getConnectedCaptures: (keywordId: string) => {
     const { nodes, links } = get();
     const targetIds = [keywordId];
-
     links.forEach((l) => {
       if (l.source === keywordId) {
         const targetNode = nodes.find((n) => n.id === l.target);
-        if (targetNode && targetNode.type === "detailed_keyword") {
-          targetIds.push(targetNode.id);
-        }
+        if (targetNode && targetNode.type === "detailed_keyword") targetIds.push(targetNode.id);
       }
     });
-
     const captures: GraphNode[] = [];
     links.forEach((l) => {
       if (targetIds.includes(l.source)) {
         const targetNode = nodes.find((n) => n.id === l.target);
-        if (targetNode && targetNode.type === "capture") {
-          captures.push(targetNode);
-        }
+        if (targetNode && targetNode.type === "capture") captures.push(targetNode);
       }
     });
     return captures;
@@ -555,10 +401,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
   deleteCapture: async (captureId: string) => {
     const { error } = await supabase.from("captures").delete().eq("id", captureId);
-    if (error) {
-      console.error("Failed to delete capture:", error);
-      return false;
-    }
+    if (error) { console.error("Failed to delete capture:", error); return false; }
     set((state) => ({
       nodes: state.nodes.filter((n) => n.id !== captureId),
       links: state.links.filter((l) => l.source !== captureId && l.target !== captureId),
@@ -569,18 +412,10 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
   backfillEmbeddings: async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("backfill-embeddings", {
-        body: {},
-      });
-      if (error) {
-        console.error("Backfill error:", error);
-        return null;
-      }
+      const { data, error } = await supabase.functions.invoke("backfill-embeddings", { body: {} });
+      if (error) { console.error("Backfill error:", error); return null; }
       return data as { processed: number; failed: number; total: number };
-    } catch (e) {
-      console.error("Backfill error:", e);
-      return null;
-    }
+    } catch (e) { console.error("Backfill error:", e); return null; }
   },
 
   updateCapture: async (captureId: string, title: string, description?: string) => {
@@ -588,27 +423,128 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
       const { error } = await supabase.functions.invoke("update-capture", {
         body: { capture_id: captureId, title, description },
       });
-      if (error) {
-        console.error("Update capture error:", error);
-        return false;
-      }
+      if (error) { console.error("Update capture error:", error); return false; }
       set((state) => ({
-        nodes: state.nodes.map((n) =>
-          n.id === captureId ? { ...n, title, description: description ?? n.description } : n,
-        ),
-        selectedNode:
-          state.selectedNode?.id === captureId
-            ? { ...state.selectedNode, title, description: description ?? state.selectedNode.description }
-            : state.selectedNode,
-        activeNode:
-          state.activeNode?.id === captureId
-            ? { ...state.activeNode, title, description: description ?? state.activeNode.description }
-            : state.activeNode,
+        nodes: state.nodes.map((n) => n.id === captureId ? { ...n, title, description: description ?? n.description } : n),
+        selectedNode: state.selectedNode?.id === captureId ? { ...state.selectedNode, title, description: description ?? state.selectedNode.description } : state.selectedNode,
+        activeNode: state.activeNode?.id === captureId ? { ...state.activeNode, title, description: description ?? state.activeNode.description } : state.activeNode,
       }));
       return true;
-    } catch (e) {
-      console.error("Update capture error:", e);
-      return false;
+    } catch (e) { console.error("Update capture error:", e); return false; }
+  },
+
+  addKeyword: async (title: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: inserted, error } = await supabase
+      .from("nodes")
+      .insert({ title, creator_id: user.id, type: "keyword" })
+      .select()
+      .single();
+    if (error || !inserted) { console.error("Failed to add keyword:", error); return false; }
+
+    set((state) => {
+      const centerNode = state.nodes.find((n) => n.type === "center");
+      const angle = Math.random() * Math.PI * 2;
+      return {
+        nodes: [...state.nodes, {
+          id: inserted.id, dbId: inserted.id, type: "keyword" as const, title,
+          x: (centerNode?.x || 0) + Math.cos(angle) * 100, y: (centerNode?.y || 0) + Math.sin(angle) * 100,
+          vx: 0, vy: 0, fx: 0, fy: 0,
+        }],
+        links: [...state.links, { source: "center", target: inserted.id }],
+      };
+    });
+
+    // Generate embedding for the new keyword
+    supabase.functions.invoke("generate-node-embeddings", { body: { node_ids: [inserted.id] } }).catch(console.error);
+    return true;
+  },
+
+  updateNode: async (nodeId: string, title: string) => {
+    const { error } = await supabase.from("nodes").update({ title }).eq("id", nodeId);
+    if (error) { console.error("Failed to update node:", error); return false; }
+
+    set((state) => ({
+      nodes: state.nodes.map((n) => n.id === nodeId ? { ...n, title } : n),
+      selectedNode: state.selectedNode?.id === nodeId ? { ...state.selectedNode, title } : state.selectedNode,
+      activeNode: state.activeNode?.id === nodeId ? { ...state.activeNode, title } : state.activeNode,
+    }));
+
+    // Regenerate embedding with new title
+    supabase.functions.invoke("generate-node-embeddings", { body: { node_ids: [nodeId] } }).catch(console.error);
+    return true;
+  },
+
+  deleteNode: async (nodeId: string) => {
+    const { nodes, links } = get();
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || node.type === "center") return false;
+
+    // Find all captures under this node (direct + through child detailed_keywords)
+    const childDkIds = nodes.filter((n) => n.type === "detailed_keyword" && links.some((l) => l.source === nodeId && l.target === n.id)).map((n) => n.id);
+    const allParentIds = [nodeId, ...childDkIds];
+    const capturesUnder = nodes.filter((n) => n.type === "capture" && allParentIds.includes(n.connected_to || ""));
+
+    // Move captures to "기타" if they exist
+    if (capturesUnder.length > 0) {
+      const miscNode = nodes.find((n) => n.type === "keyword" && n.title === "기타");
+      if (miscNode) {
+        await supabase.from("captures").update({ connected_to: miscNode.id }).in("id", capturesUnder.map((c) => c.id));
+      }
     }
+
+    // Delete child detailed_keywords first
+    if (childDkIds.length > 0) {
+      await supabase.from("nodes").delete().in("id", childDkIds);
+    }
+
+    const { error } = await supabase.from("nodes").delete().eq("id", nodeId);
+    if (error) { console.error("Failed to delete node:", error); return false; }
+
+    set((state) => {
+      const removedIds = new Set([nodeId, ...childDkIds]);
+      const miscNode = state.nodes.find((n) => n.type === "keyword" && n.title === "기타");
+      let updatedNodes = state.nodes.filter((n) => !removedIds.has(n.id));
+      let updatedLinks = state.links.filter((l) => !removedIds.has(l.source) && !removedIds.has(l.target));
+
+      // Re-link moved captures to 기타
+      if (miscNode) {
+        updatedNodes = updatedNodes.map((n) => {
+          if (n.type === "capture" && allParentIds.includes(n.connected_to || "")) {
+            return { ...n, connected_to: miscNode.id };
+          }
+          return n;
+        });
+        capturesUnder.forEach((c) => {
+          updatedLinks.push({ source: miscNode.id, target: c.id });
+        });
+      }
+
+      return {
+        nodes: updatedNodes,
+        links: updatedLinks,
+        selectedNode: state.selectedNode?.id === nodeId ? null : state.selectedNode,
+      };
+    });
+    return true;
+  },
+
+  moveCapture: async (captureId: string, targetNodeId: string) => {
+    const { error } = await supabase.from("captures").update({ connected_to: targetNodeId }).eq("id", captureId);
+    if (error) { console.error("Failed to move capture:", error); return false; }
+
+    set((state) => {
+      const updatedLinks = state.links.filter((l) => l.target !== captureId);
+      updatedLinks.push({ source: targetNodeId, target: captureId });
+      return {
+        nodes: state.nodes.map((n) => n.id === captureId ? { ...n, connected_to: targetNodeId } : n),
+        links: updatedLinks,
+        selectedNode: state.selectedNode?.id === captureId ? { ...state.selectedNode, connected_to: targetNodeId } : state.selectedNode,
+        activeNode: state.activeNode?.id === captureId ? { ...state.activeNode, connected_to: targetNodeId } : state.activeNode,
+      };
+    });
+    return true;
   },
 }));
