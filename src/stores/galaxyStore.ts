@@ -255,8 +255,12 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     assignedKeywordId = aiResult.keyword_id;
     assignedKeywordTitle = aiResult.keyword_title || "";
 
-    const targetId = assignedKeywordId || nodes.find((n) => n.type === "keyword")?.id;
-    if (!targetId) return null;
+    const targetId = assignedKeywordId;
+    if (!targetId) {
+      console.error("No keyword assigned — deleting capture");
+      await supabase.from("captures").delete().eq("id", insertedCapture.id);
+      return null;
+    }
 
     let parentNode = nodes.find((n) => n.id === targetId);
     const newNodes = [...nodes];
