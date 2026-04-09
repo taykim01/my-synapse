@@ -169,8 +169,8 @@ Deno.serve(async (req) => {
   try {
     const { capture_id, title, description, content_type, content_url, metadata } = await req.json();
 
-    if (!capture_id) {
-      return new Response(JSON.stringify({ error: "capture_id is required" }), {
+    if (!title || !content_type) {
+      return new Response(JSON.stringify({ error: "title and content_type are required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -199,32 +199,24 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Step 1: Generate AI category caption — REQUIRED
     const aiCaption = await generateCategoryCaption({ title, description, content_type, metadata });
-
     if (!aiCaption) {
       console.error("Failed to generate AI caption — aborting assignment");
       return new Response(
-        JSON.stringify({ error: "ai_caption_generation_failed", keyword_id: null }),
+        JSON.stringify({ error: "ai_caption_generation_failed", keyword_id: null, ai_caption: null, embedding: null }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Step 2: Embed the AI caption
-    const embeddingText = aiCaption;
-    console.log("Embedding text:", embeddingText.slice(0, 200));
-
-    const embedding = await generateEmbedding(embeddingText, openaiApiKey);
-
+    const embedding = await generateEmbedding(aiCaption, openaiApiKey);
     if (!embedding) {
       console.error("Failed to generate embedding — aborting assignment");
       return new Response(
-        JSON.stringify({ error: "embedding_generation_failed", keyword_id: null }),
+        JSON.stringify({ error: "embedding_generation_failed", keyword_id: null, ai_caption: aiCaption, embedding: null }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // Find most similar node
     const { data: matchedNodes, error: matchError } = await adminClient.rpc("match_nodes", {
       query_embedding: JSON.stringify(embedding),
       match_threshold: 0.0,
@@ -260,26 +252,23 @@ Deno.serve(async (req) => {
       reason = "no_node_embeddings_fallback_misc";
     }
 
-    // Update capture with keyword, embedding, metadata, and AI caption
-    const updateData: Record<string, unknown> = { embedding: JSON.stringify(embedding) };
-    if (selectedKeywordId) {
-      updateData.connected_to = selectedKeywordId;
-    }
-    if (metadata) {
-      updateData.metadata = metadata;
-    }
-    if (aiCaption) {
-      updateData.ai_caption = aiCaption;
-    }
+    if (capture_id) {
+      const updateData: Record<string, unknown> = {
+        embedding: JSON.stringify(embedding),
+        ai_caption: aiCaption,
+        connected_to: selectedKeywordId,
+      };
+      if (metadata) updateData.metadata = metadata;
 
-    const { error: updateError } = await adminClient
-      .from("captures")
-      .update(updateData)
-      .eq("id", capture_id)
-      .eq("creator_id", user.id);
+      const { error: updateError } = await adminClient
+        .from("captures")
+        .update(updateData)
+        .eq("id", capture_id)
+        .eq("creator_id", user.id);
 
-    if (updateError) {
-      console.error("Failed to update capture:", updateError);
+      if (updateError) {
+        console.error("Failed to update capture:", updateError);
+      }
     }
 
     return new Response(
@@ -287,6 +276,8 @@ Deno.serve(async (req) => {
         keyword_id: selectedKeywordId,
         keyword_title: selectedKeywordTitle,
         reason,
+        ai_caption: aiCaption,
+        embedding: JSON.stringify(embedding),
         has_embedding: true,
       }),
       {
