@@ -378,7 +378,8 @@ export function NodeDetailPanel() {
     }
   };
 
-  const isEditable = displayNode?.type === 'capture' || displayNode?.type === 'keyword' || displayNode?.type === 'detailed_keyword';
+  const isMisc = displayNode?.type === 'keyword' && displayNode?.title === '기타';
+  const isEditable = !isMisc && (displayNode?.type === 'capture' || displayNode?.type === 'keyword' || displayNode?.type === 'detailed_keyword');
 
   return (
     <div
