@@ -68,6 +68,8 @@ interface GalaxyState {
   updateNode: (nodeId: string, title: string) => Promise<boolean>;
   deleteNode: (nodeId: string) => Promise<boolean>;
   moveCapture: (captureId: string, targetNodeId: string) => Promise<boolean>;
+  moveNode: (nodeId: string, targetParentId: string | null) => Promise<boolean>;
+  addDetailedKeyword: (title: string, parentId: string) => Promise<boolean>;
 }
 
 function buildGraphFromDB(
