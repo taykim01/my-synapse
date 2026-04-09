@@ -199,24 +199,27 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Step 1: Generate AI category caption
+    // Step 1: Generate AI category caption — REQUIRED
     const aiCaption = await generateCategoryCaption({ title, description, content_type, metadata });
 
-    // Step 2: Embed the caption (or fallback to raw metadata)
-    const embeddingText = aiCaption || buildFallbackEmbeddingText({ title, description, metadata });
+    if (!aiCaption) {
+      console.error("Failed to generate AI caption — aborting assignment");
+      return new Response(
+        JSON.stringify({ error: "ai_caption_generation_failed", keyword_id: null }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Step 2: Embed the AI caption
+    const embeddingText = aiCaption;
     console.log("Embedding text:", embeddingText.slice(0, 200));
 
     const embedding = await generateEmbedding(embeddingText, openaiApiKey);
 
     if (!embedding) {
-      const misc = await getOrCreateMiscKeyword(adminClient, user.id, openaiApiKey);
-      const fallbackUpdate: Record<string, unknown> = { connected_to: misc.id };
-      if (metadata) fallbackUpdate.metadata = metadata;
-      if (aiCaption) fallbackUpdate.ai_caption = aiCaption;
-      await adminClient.from("captures").update(fallbackUpdate).eq("id", capture_id);
-
+      console.error("Failed to generate embedding — aborting assignment");
       return new Response(
-        JSON.stringify({ keyword_id: misc.id, keyword_title: misc.title, reason: "no_embedding_fallback_misc", has_embedding: false }),
+        JSON.stringify({ error: "embedding_generation_failed", keyword_id: null }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
