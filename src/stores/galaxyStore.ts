@@ -212,13 +212,38 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const state = get();
     const { captureForm, nodes, links } = state;
     const isText = captureForm.content_type === "TEXT";
-    if (isText && !captureForm.title.trim()) return null;
+    const requiresMetadata = captureForm.content_type !== "TEXT";
+
+    if (!captureForm.title.trim()) return null;
     if (!isText && !captureForm.content_url.trim()) return null;
-    const title = captureForm.title.trim() || `${captureForm.content_type} 캡처 — ${new Date().toLocaleDateString("ko-KR")}`;
+    if (requiresMetadata && !captureForm.metadata) return null;
+
+    const title = captureForm.title.trim();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
+    // 1) Pre-analyze first. If AI caption/embedding/keyword isn't ready, do NOT create capture.
+    const { data: aiResult, error: aiError } = await supabase.functions.invoke("assign-capture-keyword", {
+      body: {
+        title,
+        description: captureForm.description || "",
+        content_type: captureForm.content_type,
+        content_url: captureForm.content_url || "",
+        metadata: captureForm.metadata || undefined,
+      },
+    });
+
+    if (aiError || !aiResult?.keyword_id || !aiResult?.ai_caption || !aiResult?.embedding) {
+      console.error("AI pre-analysis failed:", aiError, aiResult);
+      return null;
+    }
+
+    const assignedKeywordId = aiResult.keyword_id as string;
+    const assignedKeywordTitle = (aiResult.keyword_title as string) || "";
+    const targetId = assignedKeywordId;
+
+    // 2) Only now insert the capture with fully prepared data.
     const { data: insertedCapture, error: insertError } = await supabase
       .from("captures")
       .insert({
@@ -228,37 +253,16 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
         content_url: captureForm.content_url || null,
         source: captureForm.source || null,
         creator_id: user.id,
-        connected_to: null,
+        connected_to: targetId,
+        metadata: captureForm.metadata || null,
+        ai_caption: aiResult.ai_caption,
+        embedding: aiResult.embedding,
       })
       .select()
       .single();
 
-    if (insertError || !insertedCapture) { console.error("Failed to save capture:", insertError); return null; }
-
-    let assignedKeywordId: string | null = null;
-    let assignedKeywordTitle = "";
-    const { data: aiResult, error: aiError } = await supabase.functions.invoke("assign-capture-keyword", {
-      body: {
-        capture_id: insertedCapture.id, title,
-        description: captureForm.description || "",
-        content_type: captureForm.content_type,
-        content_url: captureForm.content_url || "",
-        metadata: captureForm.metadata || undefined,
-      },
-    });
-    if (aiError || !aiResult?.keyword_id) {
-      console.error("AI keyword assignment failed:", aiError);
-      // Delete the orphaned capture since ai_caption wasn't generated
-      await supabase.from("captures").delete().eq("id", insertedCapture.id);
-      return null;
-    }
-    assignedKeywordId = aiResult.keyword_id;
-    assignedKeywordTitle = aiResult.keyword_title || "";
-
-    const targetId = assignedKeywordId;
-    if (!targetId) {
-      console.error("No keyword assigned — deleting capture");
-      await supabase.from("captures").delete().eq("id", insertedCapture.id);
+    if (insertError || !insertedCapture) {
+      console.error("Failed to save capture:", insertError);
       return null;
     }
 
@@ -266,12 +270,16 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const newNodes = [...nodes];
     const newLinks = [...links];
 
-    if (!parentNode && assignedKeywordId) {
+    if (!parentNode) {
       const centerId = "center";
       const centerNode = nodes.find((n) => n.id === centerId);
       const newKeywordNode: GraphNode = {
-        id: assignedKeywordId, dbId: assignedKeywordId, type: "keyword", title: assignedKeywordTitle,
-        x: (centerNode?.x || 0) + randomRange(-80, 80), y: (centerNode?.y || 0) + randomRange(-80, 80),
+        id: assignedKeywordId,
+        dbId: assignedKeywordId,
+        type: "keyword",
+        title: assignedKeywordTitle,
+        x: (centerNode?.x || 0) + randomRange(-80, 80),
+        y: (centerNode?.y || 0) + randomRange(-80, 80),
         vx: 0, vy: 0, fx: 0, fy: 0,
       };
       newNodes.push(newKeywordNode);
@@ -280,16 +288,24 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     }
 
     newNodes.push({
-      id: insertedCapture.id, dbId: insertedCapture.id, type: "capture", title,
-      description: captureForm.description, content_type: captureForm.content_type,
-      content_url: captureForm.content_url, source: captureForm.source, connected_to: targetId,
-      x: (parentNode?.x || 0) + randomRange(-30, 30), y: (parentNode?.y || 0) + randomRange(-30, 30),
+      id: insertedCapture.id,
+      dbId: insertedCapture.id,
+      type: "capture",
+      title,
+      description: captureForm.description,
+      content_type: captureForm.content_type,
+      content_url: captureForm.content_url,
+      source: captureForm.source,
+      connected_to: targetId,
+      x: (parentNode?.x || 0) + randomRange(-30, 30),
+      y: (parentNode?.y || 0) + randomRange(-30, 30),
       vx: 0, vy: 0, fx: 0, fy: 0,
     });
     newLinks.push({ source: targetId, target: insertedCapture.id });
 
     set({
-      nodes: newNodes, links: newLinks,
+      nodes: newNodes,
+      links: newLinks,
       captureForm: { title: "", description: "", content_type: "TEXT", content_url: "", source: "", tag: "", metadata: null },
       isAddingCapture: false,
     });
@@ -324,11 +340,10 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
           return { nodes: updatedNodes, links: updatedLinks };
         });
-        console.log(`DetailedKeyword created: "${dk.title}", moved ${movedIds.length} captures`);
       })
       .catch((e) => console.error("Similarity check failed:", e));
 
-    return { keyword_id: assignedKeywordId || undefined, keyword_title: assignedKeywordTitle || undefined };
+    return { keyword_id: assignedKeywordId, keyword_title: assignedKeywordTitle };
   },
 
   setSelectedNode: (node) => set((state) => ({ selectedNode: node, activeNode: node || state.activeNode })),
