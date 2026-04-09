@@ -332,6 +332,8 @@ export function NodeDetailPanel() {
     setIsEditingTitle(false);
     setIsEditingDesc(false);
     setShowMovePicker(false);
+    setShowMoveNodePicker(false);
+    setNewDk('');
   }, [displayNode?.id]);
 
   const handleSaveTitle = async () => {
