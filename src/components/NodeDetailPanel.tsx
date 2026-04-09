@@ -98,6 +98,63 @@ function MoveCapturePicker({ captureId, currentNodeId, onClose }: { captureId: s
   );
 }
 
+function MoveNodePicker({ nodeId, currentParentId, onClose }: { nodeId: string; currentParentId: string | null; onClose: () => void }) {
+  const nodes = useGalaxyStore(s => s.nodes);
+  const links = useGalaxyStore(s => s.links);
+  const moveNode = useGalaxyStore(s => s.moveNode);
+  const [moving, setMoving] = useState(false);
+
+  // Collect all descendant IDs to prevent circular moves
+  const getDescendants = (id: string): Set<string> => {
+    const desc = new Set<string>();
+    const children = links.filter(l => l.source === id).map(l => l.target);
+    children.forEach(c => { desc.add(c); getDescendants(c).forEach(d => desc.add(d)); });
+    return desc;
+  };
+  const descendants = getDescendants(nodeId);
+
+  // Targets: "나" (center) + all keyword/DK nodes except self, current parent, and descendants
+  const targets: { id: string; label: string; type: string }[] = [];
+  const currentGraphParent = currentParentId || 'center';
+  if (currentGraphParent !== 'center') {
+    targets.push({ id: 'center', label: '나 (최상위)', type: 'center' });
+  }
+  nodes.filter(n => (n.type === 'keyword' || n.type === 'detailed_keyword') && n.id !== nodeId && n.id !== currentGraphParent && !descendants.has(n.id))
+    .forEach(n => targets.push({ id: n.id, label: n.title, type: n.type }));
+
+  const handleMove = async (targetId: string) => {
+    setMoving(true);
+    const parentId = targetId === 'center' ? null : targetId;
+    const ok = await moveNode(nodeId, parentId);
+    setMoving(false);
+    if (ok) { toast({ title: '키워드가 이동되었습니다.' }); onClose(); }
+    else toast({ title: '이동에 실패했습니다.', variant: 'destructive' });
+  };
+
+  return (
+    <div className="mb-4 border border-border rounded-xl p-3 bg-muted/30">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-foreground">이동할 위치 선택</span>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
+      </div>
+      <div className="max-h-48 overflow-y-auto space-y-1">
+        {targets.map(t => (
+          <button
+            key={t.id}
+            onClick={() => handleMove(t.id)}
+            disabled={moving}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${t.type === 'center' ? 'bg-[#22d3ee]' : t.type === 'keyword' ? 'bg-[#d946ef]' : 'bg-[#6366f1]'}`} />
+            <span className="text-foreground truncate">{t.label}</span>
+          </button>
+        ))}
+        {targets.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">이동 가능한 위치가 없습니다.</p>}
+      </div>
+    </div>
+  );
+}
+
 function KeywordCaptureList({ keywordId, onSelectCapture }: { keywordId: string; onSelectCapture: (node: GraphNode) => void }) {
   const nodes = useGalaxyStore(s => s.nodes);
   const links = useGalaxyStore(s => s.links);
@@ -257,6 +314,7 @@ export function NodeDetailPanel() {
   const updateCapture = useGalaxyStore(s => s.updateCapture);
   const updateNode = useGalaxyStore(s => s.updateNode);
   const deleteNode = useGalaxyStore(s => s.deleteNode);
+  const addDetailedKeyword = useGalaxyStore(s => s.addDetailedKeyword);
   const [deleting, setDeleting] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -264,6 +322,9 @@ export function NodeDetailPanel() {
   const [editDesc, setEditDesc] = useState('');
   const [saving, setSaving] = useState(false);
   const [showMovePicker, setShowMovePicker] = useState(false);
+  const [showMoveNodePicker, setShowMoveNodePicker] = useState(false);
+  const [newDk, setNewDk] = useState('');
+  const [addingDk, setAddingDk] = useState(false);
 
   const displayNode = activeNode;
 
@@ -271,6 +332,8 @@ export function NodeDetailPanel() {
     setIsEditingTitle(false);
     setIsEditingDesc(false);
     setShowMovePicker(false);
+    setShowMoveNodePicker(false);
+    setNewDk('');
   }, [displayNode?.id]);
 
   const handleSaveTitle = async () => {
@@ -437,10 +500,46 @@ export function NodeDetailPanel() {
 
       {(displayNode?.type === 'keyword' || displayNode?.type === 'detailed_keyword') && (
         <>
+          {/* Add DetailedKeyword form */}
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!newDk.trim() || !displayNode.id) return;
+            setAddingDk(true);
+            const ok = await addDetailedKeyword(newDk.trim(), displayNode.id);
+            setAddingDk(false);
+            if (ok) { toast({ title: `"${newDk.trim()}" 세부 키워드가 추가되었습니다.` }); setNewDk(''); }
+            else toast({ title: '세부 키워드 추가에 실패했습니다.', variant: 'destructive' });
+          }} className="flex gap-2 mb-3">
+            <input
+              type="text"
+              value={newDk}
+              onChange={e => setNewDk(e.target.value)}
+              placeholder="새 세부 키워드 추가"
+              className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
+            />
+            <button type="submit" disabled={addingDk || !newDk.trim()} className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs hover:bg-secondary/90 disabled:opacity-50">
+              {addingDk ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            </button>
+          </form>
+
           <KeywordCaptureList keywordId={displayNode.id} onSelectCapture={setSelectedNode} />
-          <button onClick={handleDelete} disabled={deleting} className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50">
-            <Trash2 size={14} /> {deleting ? '삭제 중...' : '키워드 삭제'}
-          </button>
+
+          {/* Bottom action buttons */}
+          <div className="mt-auto space-y-2 pt-2">
+            {showMoveNodePicker ? (
+              <MoveNodePicker nodeId={displayNode.id} currentParentId={displayNode.connected_to || null} onClose={() => setShowMoveNodePicker(false)} />
+            ) : (
+              <button
+                onClick={() => setShowMoveNodePicker(true)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-sm"
+              >
+                <ArrowRight size={14} /> 다른 위치로 이동
+              </button>
+            )}
+            <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50">
+              <Trash2 size={14} /> {deleting ? '삭제 중...' : '키워드 삭제'}
+            </button>
+          </div>
         </>
       )}
 
