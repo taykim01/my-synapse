@@ -74,6 +74,7 @@ export type Database = {
           embedding: string | null
           id: string
           parent_id: string | null
+          related_keywords: string | null
           title: string
           type: string
         }
@@ -83,6 +84,7 @@ export type Database = {
           embedding?: string | null
           id?: string
           parent_id?: string | null
+          related_keywords?: string | null
           title: string
           type?: string
         }
@@ -92,6 +94,7 @@ export type Database = {
           embedding?: string | null
           id?: string
           parent_id?: string | null
+          related_keywords?: string | null
           title?: string
           type?: string
         }

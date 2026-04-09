@@ -1,0 +1,1 @@
+ALTER TABLE public.nodes ADD COLUMN related_keywords text;
