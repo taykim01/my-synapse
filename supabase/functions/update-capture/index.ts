@@ -69,7 +69,7 @@ async function generateCategoryCaption(params: {
         messages: [
           {
             role: "system",
-            content: `You are a categorization expert. Given information about a piece of content, generate a short caption (1-2 sentences, max 50 words) that describes what category/topic this content belongs to. Focus on the subject matter, theme, and domain. Write in Korean. Be specific — e.g. "한국 역사 다큐멘터리 - 조선시대 궁궐 건축과 온돌 시스템" not just "역사". The caption will be used to match this content to the right category via semantic similarity.`,
+            content: `You are a categorization expert. Given information about a piece of content, generate a detailed caption (3-5 sentences, 80-150 words) that thoroughly describes what category/topic this content belongs to. Include the main subject, related keywords, synonyms, and sub-topics so that semantic matching works well. Write in Korean. Be specific and expansive — e.g. "운동/헬스/피트니스 - 웨이트 트레이닝, 근력 운동, 이두근 삼두근 팔 운동법. 보디빌딩 및 체형 관리를 위한 헬스장 트레이닝 노하우. 관련 키워드: 헬스, 운동, 근육, 벌크업, 다이어트, 체력 단련" not just "운동 팁". The caption will be used to match this content to the right category via semantic similarity, so include as many relevant terms as possible.`,
           },
           { role: "user", content: context },
         ],
