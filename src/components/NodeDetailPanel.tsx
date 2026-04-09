@@ -525,22 +525,24 @@ export function NodeDetailPanel() {
 
           <KeywordCaptureList keywordId={displayNode.id} onSelectCapture={setSelectedNode} />
 
-          {/* Bottom action buttons */}
-          <div className="mt-auto space-y-2 pt-2">
-            {showMoveNodePicker ? (
-              <MoveNodePicker nodeId={displayNode.id} currentParentId={displayNode.connected_to || null} onClose={() => setShowMoveNodePicker(false)} />
-            ) : (
-              <button
-                onClick={() => setShowMoveNodePicker(true)}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-sm"
-              >
-                <ArrowRight size={14} /> 다른 위치로 이동
+          {/* Bottom action buttons — hidden for 기타 */}
+          {!isMisc && (
+            <div className="mt-auto space-y-2 pt-2">
+              {showMoveNodePicker ? (
+                <MoveNodePicker nodeId={displayNode.id} currentParentId={displayNode.connected_to || null} onClose={() => setShowMoveNodePicker(false)} />
+              ) : (
+                <button
+                  onClick={() => setShowMoveNodePicker(true)}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-sm"
+                >
+                  <ArrowRight size={14} /> 다른 위치로 이동
+                </button>
+              )}
+              <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50">
+                <Trash2 size={14} /> {deleting ? '삭제 중...' : '키워드 삭제'}
               </button>
-            )}
-            <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50">
-              <Trash2 size={14} /> {deleting ? '삭제 중...' : '키워드 삭제'}
-            </button>
-          </div>
+            </div>
+          )}
         </>
       )}
 
