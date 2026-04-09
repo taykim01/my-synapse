@@ -98,6 +98,63 @@ function MoveCapturePicker({ captureId, currentNodeId, onClose }: { captureId: s
   );
 }
 
+function MoveNodePicker({ nodeId, currentParentId, onClose }: { nodeId: string; currentParentId: string | null; onClose: () => void }) {
+  const nodes = useGalaxyStore(s => s.nodes);
+  const links = useGalaxyStore(s => s.links);
+  const moveNode = useGalaxyStore(s => s.moveNode);
+  const [moving, setMoving] = useState(false);
+
+  // Collect all descendant IDs to prevent circular moves
+  const getDescendants = (id: string): Set<string> => {
+    const desc = new Set<string>();
+    const children = links.filter(l => l.source === id).map(l => l.target);
+    children.forEach(c => { desc.add(c); getDescendants(c).forEach(d => desc.add(d)); });
+    return desc;
+  };
+  const descendants = getDescendants(nodeId);
+
+  // Targets: "나" (center) + all keyword/DK nodes except self, current parent, and descendants
+  const targets: { id: string; label: string; type: string }[] = [];
+  const currentGraphParent = currentParentId || 'center';
+  if (currentGraphParent !== 'center') {
+    targets.push({ id: 'center', label: '나 (최상위)', type: 'center' });
+  }
+  nodes.filter(n => (n.type === 'keyword' || n.type === 'detailed_keyword') && n.id !== nodeId && n.id !== currentGraphParent && !descendants.has(n.id))
+    .forEach(n => targets.push({ id: n.id, label: n.title, type: n.type }));
+
+  const handleMove = async (targetId: string) => {
+    setMoving(true);
+    const parentId = targetId === 'center' ? null : targetId;
+    const ok = await moveNode(nodeId, parentId);
+    setMoving(false);
+    if (ok) { toast({ title: '키워드가 이동되었습니다.' }); onClose(); }
+    else toast({ title: '이동에 실패했습니다.', variant: 'destructive' });
+  };
+
+  return (
+    <div className="mb-4 border border-border rounded-xl p-3 bg-muted/30">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-foreground">이동할 위치 선택</span>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
+      </div>
+      <div className="max-h-48 overflow-y-auto space-y-1">
+        {targets.map(t => (
+          <button
+            key={t.id}
+            onClick={() => handleMove(t.id)}
+            disabled={moving}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <span className={`w-2 h-2 rounded-full shrink-0 ${t.type === 'center' ? 'bg-[#22d3ee]' : t.type === 'keyword' ? 'bg-[#d946ef]' : 'bg-[#6366f1]'}`} />
+            <span className="text-foreground truncate">{t.label}</span>
+          </button>
+        ))}
+        {targets.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">이동 가능한 위치가 없습니다.</p>}
+      </div>
+    </div>
+  );
+}
+
 function KeywordCaptureList({ keywordId, onSelectCapture }: { keywordId: string; onSelectCapture: (node: GraphNode) => void }) {
   const nodes = useGalaxyStore(s => s.nodes);
   const links = useGalaxyStore(s => s.links);
