@@ -549,4 +549,72 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     });
     return true;
   },
+
+  moveNode: async (nodeId: string, targetParentId: string | null) => {
+    const { nodes, links } = get();
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node || node.type === "center") return false;
+
+    // Update parent_id in DB
+    const newParentId = targetParentId === "center" ? null : targetParentId;
+    const newType = newParentId === null ? "keyword" : "detailed_keyword";
+
+    const { error } = await supabase.from("nodes").update({ parent_id: newParentId, type: newType }).eq("id", nodeId);
+    if (error) { console.error("Failed to move node:", error); return false; }
+
+    // If becoming a keyword from DK, also update children DKs' embeddings
+    const childDkIds = nodes.filter((n) => n.type === "detailed_keyword" && links.some((l) => l.source === nodeId && l.target === n.id)).map((n) => n.id);
+
+    set((state) => {
+      const graphParentId = targetParentId || "center";
+      const parentNode = state.nodes.find((n) => n.id === graphParentId);
+      const updatedLinks = state.links.filter((l) => l.target !== nodeId);
+      updatedLinks.push({ source: graphParentId, target: nodeId });
+
+      return {
+        nodes: state.nodes.map((n) => n.id === nodeId ? {
+          ...n, type: newType as any, connected_to: newParentId || undefined,
+          x: (parentNode?.x || 0) + randomRange(-60, 60),
+          y: (parentNode?.y || 0) + randomRange(-60, 60),
+        } : n),
+        links: updatedLinks,
+        selectedNode: state.selectedNode?.id === nodeId ? { ...state.selectedNode, type: newType as any } : state.selectedNode,
+        activeNode: state.activeNode?.id === nodeId ? { ...state.activeNode, type: newType as any } : state.activeNode,
+      };
+    });
+
+    // Regenerate embeddings for moved node and its children
+    const idsToReembed = [nodeId, ...childDkIds];
+    supabase.functions.invoke("generate-node-embeddings", { body: { node_ids: idsToReembed } }).catch(console.error);
+    return true;
+  },
+
+  addDetailedKeyword: async (title: string, parentId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data: inserted, error } = await supabase
+      .from("nodes")
+      .insert({ title, creator_id: user.id, type: "detailed_keyword", parent_id: parentId })
+      .select()
+      .single();
+    if (error || !inserted) { console.error("Failed to add detailed keyword:", error); return false; }
+
+    set((state) => {
+      const parentNode = state.nodes.find((n) => n.id === parentId);
+      return {
+        nodes: [...state.nodes, {
+          id: inserted.id, dbId: inserted.id, type: "detailed_keyword" as const, title,
+          connected_to: parentId,
+          x: (parentNode?.x || 0) + randomRange(-40, 40),
+          y: (parentNode?.y || 0) + randomRange(-40, 40),
+          vx: 0, vy: 0, fx: 0, fy: 0,
+        }],
+        links: [...state.links, { source: parentId, target: inserted.id }],
+      };
+    });
+
+    supabase.functions.invoke("generate-node-embeddings", { body: { node_ids: [inserted.id] } }).catch(console.error);
+    return true;
+  },
 }));
