@@ -36,9 +36,54 @@ async function generateEmbedding(text: string, openaiApiKey: string): Promise<nu
 }
 
 /**
- * Build a hierarchical path string for embedding.
+ * Use AI to generate related keywords for a node title.
+ */
+async function generateRelatedKeywords(title: string, pathContext: string): Promise<string | null> {
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!lovableApiKey) return null;
+
+  try {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          {
+            role: "system",
+            content: `You are a keyword expansion expert. Given a category/topic name, generate 10-20 closely related Korean keywords that a typical person would associate with this topic. Include synonyms, sub-categories, related concepts, and commonly associated terms. Output ONLY a comma-separated list of keywords in Korean, nothing else. Example: input "헬스" → "운동, 피트니스, 웨이트 트레이닝, 근력 운동, 체력 단련, 벌크업, 다이어트, 헬스장, 짐, 보디빌딩, 근육, 유산소, 무산소, 스쿼트, 데드리프트, 벤치프레스, PT, 개인트레이닝, 체형관리"`,
+          },
+          {
+            role: "user",
+            content: pathContext !== title ? `카테고리: "${title}" (상위: "${pathContext}")` : `카테고리: "${title}"`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Related keywords generation error:", response.status, errText);
+      return null;
+    }
+
+    const data = await response.json();
+    const keywords = data.choices?.[0]?.message?.content?.trim();
+    console.log(`Related keywords for "${title}": ${keywords?.slice(0, 100)}...`);
+    return keywords || null;
+  } catch (e) {
+    console.error("Related keywords generation error:", e);
+    return null;
+  }
+}
+
+/**
+ * Build a hierarchical path string.
  * For keywords: just the title.
- * For detailed_keywords: "ParentKeyword-DetailedKeyword" or "ParentKeyword-ParentDK-DetailedKeyword"
+ * For detailed_keywords: "ParentKeyword-DetailedKeyword" etc.
  */
 async function buildEmbeddingPath(
   adminClient: any,
@@ -49,10 +94,9 @@ async function buildEmbeddingPath(
     return node.title;
   }
 
-  // Build path by traversing up the parent chain
   const pathParts: string[] = [node.title];
   let currentParentId: string | null = node.parent_id;
-  const maxDepth = 10; // safety limit
+  const maxDepth = 10;
 
   for (let i = 0; i < maxDepth && currentParentId; i++) {
     const { data: parent } = await adminClient
@@ -68,6 +112,19 @@ async function buildEmbeddingPath(
   }
 
   return pathParts.join("-");
+}
+
+/**
+ * Build the final embedding text.
+ * Title is repeated 3x for higher weight, then related keywords are appended.
+ */
+function buildEmbeddingText(path: string, relatedKeywords: string | null): string {
+  // Repeat the path for emphasis, then append related keywords
+  const parts = [path, path, path];
+  if (relatedKeywords) {
+    parts.push(relatedKeywords);
+  }
+  return parts.join(" | ");
 }
 
 Deno.serve(async (req) => {
@@ -108,10 +165,10 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Get nodes with type and parent_id
+    // Get nodes with type, parent_id, and related_keywords
     const { data: nodes, error: fetchError } = await adminClient
       .from("nodes")
-      .select("id, title, type, parent_id")
+      .select("id, title, type, parent_id, related_keywords")
       .in("id", node_ids)
       .eq("creator_id", user.id);
 
@@ -126,8 +183,22 @@ Deno.serve(async (req) => {
     let failed = 0;
 
     for (const node of nodes) {
-      const embeddingText = await buildEmbeddingPath(adminClient, node, user.id);
-      console.log(`Embedding text for "${node.title}" (${node.type}): "${embeddingText}"`);
+      const path = await buildEmbeddingPath(adminClient, node, user.id);
+
+      // Generate related keywords if not already set
+      let relatedKeywords = node.related_keywords;
+      if (!relatedKeywords) {
+        relatedKeywords = await generateRelatedKeywords(node.title, path);
+        if (relatedKeywords) {
+          await adminClient
+            .from("nodes")
+            .update({ related_keywords: relatedKeywords })
+            .eq("id", node.id);
+        }
+      }
+
+      const embeddingText = buildEmbeddingText(path, relatedKeywords);
+      console.log(`Embedding text for "${node.title}" (${node.type}): "${embeddingText.slice(0, 150)}..."`);
 
       const embedding = await generateEmbedding(embeddingText, openaiApiKey);
       if (embedding) {
