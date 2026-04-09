@@ -500,10 +500,46 @@ export function NodeDetailPanel() {
 
       {(displayNode?.type === 'keyword' || displayNode?.type === 'detailed_keyword') && (
         <>
+          {/* Add DetailedKeyword form */}
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!newDk.trim() || !displayNode.id) return;
+            setAddingDk(true);
+            const ok = await addDetailedKeyword(newDk.trim(), displayNode.id);
+            setAddingDk(false);
+            if (ok) { toast({ title: `"${newDk.trim()}" 세부 키워드가 추가되었습니다.` }); setNewDk(''); }
+            else toast({ title: '세부 키워드 추가에 실패했습니다.', variant: 'destructive' });
+          }} className="flex gap-2 mb-3">
+            <input
+              type="text"
+              value={newDk}
+              onChange={e => setNewDk(e.target.value)}
+              placeholder="새 세부 키워드 추가"
+              className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
+            />
+            <button type="submit" disabled={addingDk || !newDk.trim()} className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs hover:bg-secondary/90 disabled:opacity-50">
+              {addingDk ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            </button>
+          </form>
+
           <KeywordCaptureList keywordId={displayNode.id} onSelectCapture={setSelectedNode} />
-          <button onClick={handleDelete} disabled={deleting} className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50">
-            <Trash2 size={14} /> {deleting ? '삭제 중...' : '키워드 삭제'}
-          </button>
+
+          {/* Bottom action buttons */}
+          <div className="mt-auto space-y-2 pt-2">
+            {showMoveNodePicker ? (
+              <MoveNodePicker nodeId={displayNode.id} currentParentId={displayNode.connected_to || null} onClose={() => setShowMoveNodePicker(false)} />
+            ) : (
+              <button
+                onClick={() => setShowMoveNodePicker(true)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors text-sm"
+              >
+                <ArrowRight size={14} /> 다른 위치로 이동
+              </button>
+            )}
+            <button onClick={handleDelete} disabled={deleting} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors text-sm disabled:opacity-50">
+              <Trash2 size={14} /> {deleting ? '삭제 중...' : '키워드 삭제'}
+            </button>
+          </div>
         </>
       )}
 
