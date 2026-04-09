@@ -237,21 +237,23 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
     let assignedKeywordId: string | null = null;
     let assignedKeywordTitle = "";
-    try {
-      const { data: aiResult, error: aiError } = await supabase.functions.invoke("assign-capture-keyword", {
-        body: {
-          capture_id: insertedCapture.id, title,
-          description: captureForm.description || "",
-          content_type: captureForm.content_type,
-          content_url: captureForm.content_url || "",
-          metadata: captureForm.metadata || undefined,
-        },
-      });
-      if (!aiError && aiResult?.keyword_id) {
-        assignedKeywordId = aiResult.keyword_id;
-        assignedKeywordTitle = aiResult.keyword_title || "";
-      }
-    } catch (e) { console.error("AI keyword assignment failed:", e); }
+    const { data: aiResult, error: aiError } = await supabase.functions.invoke("assign-capture-keyword", {
+      body: {
+        capture_id: insertedCapture.id, title,
+        description: captureForm.description || "",
+        content_type: captureForm.content_type,
+        content_url: captureForm.content_url || "",
+        metadata: captureForm.metadata || undefined,
+      },
+    });
+    if (aiError || !aiResult?.keyword_id) {
+      console.error("AI keyword assignment failed:", aiError);
+      // Delete the orphaned capture since ai_caption wasn't generated
+      await supabase.from("captures").delete().eq("id", insertedCapture.id);
+      return null;
+    }
+    assignedKeywordId = aiResult.keyword_id;
+    assignedKeywordTitle = aiResult.keyword_title || "";
 
     const targetId = assignedKeywordId || nodes.find((n) => n.type === "keyword")?.id;
     if (!targetId) return null;
