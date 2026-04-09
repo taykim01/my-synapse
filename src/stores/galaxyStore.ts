@@ -212,25 +212,30 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const state = get();
     const { captureForm, nodes, links } = state;
     const isText = captureForm.content_type === "TEXT";
-    const requiresMetadata = captureForm.content_type !== "TEXT";
+    const derivedMetadata = isText
+      ? {
+          input_type: "TEXT",
+          title: captureForm.title.trim(),
+          description: captureForm.description || "",
+        }
+      : captureForm.metadata;
 
     if (!captureForm.title.trim()) return null;
     if (!isText && !captureForm.content_url.trim()) return null;
-    if (requiresMetadata && !captureForm.metadata) return null;
+    if (!derivedMetadata) return null;
 
     const title = captureForm.title.trim();
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    // 1) Pre-analyze first. If AI caption/embedding/keyword isn't ready, do NOT create capture.
     const { data: aiResult, error: aiError } = await supabase.functions.invoke("assign-capture-keyword", {
       body: {
         title,
         description: captureForm.description || "",
         content_type: captureForm.content_type,
         content_url: captureForm.content_url || "",
-        metadata: captureForm.metadata || undefined,
+        metadata: derivedMetadata,
       },
     });
 
@@ -242,22 +247,22 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const assignedKeywordId = aiResult.keyword_id as string;
     const assignedKeywordTitle = (aiResult.keyword_title as string) || "";
     const targetId = assignedKeywordId;
+    const capturePayload: any = {
+      title,
+      description: captureForm.description || null,
+      content_type: captureForm.content_type,
+      content_url: captureForm.content_url || null,
+      source: captureForm.source || null,
+      creator_id: user.id,
+      connected_to: targetId,
+      metadata: derivedMetadata,
+      ai_caption: aiResult.ai_caption,
+      embedding: aiResult.embedding,
+    };
 
-    // 2) Only now insert the capture with fully prepared data.
     const { data: insertedCapture, error: insertError } = await supabase
       .from("captures")
-      .insert({
-        title,
-        description: captureForm.description || null,
-        content_type: captureForm.content_type,
-        content_url: captureForm.content_url || null,
-        source: captureForm.source || null,
-        creator_id: user.id,
-        connected_to: targetId,
-        metadata: captureForm.metadata || null,
-        ai_caption: aiResult.ai_caption,
-        embedding: aiResult.embedding,
-      })
+      .insert(capturePayload)
       .select()
       .single();
 
@@ -271,8 +276,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
     const newLinks = [...links];
 
     if (!parentNode) {
-      const centerId = "center";
-      const centerNode = nodes.find((n) => n.id === centerId);
+      const centerNode = nodes.find((n) => n.id === "center");
       const newKeywordNode: GraphNode = {
         id: assignedKeywordId,
         dbId: assignedKeywordId,
@@ -283,7 +287,7 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
         vx: 0, vy: 0, fx: 0, fy: 0,
       };
       newNodes.push(newKeywordNode);
-      newLinks.push({ source: centerId, target: assignedKeywordId });
+      newLinks.push({ source: "center", target: assignedKeywordId });
       parentNode = newKeywordNode;
     }
 

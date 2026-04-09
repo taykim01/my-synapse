@@ -39,6 +39,7 @@ export function CaptureModal() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [fetchingMeta, setFetchingMeta] = useState(false);
+  const [metadataPending, setMetadataPending] = useState(false);
   const [saving, setSaving] = useState(false);
   const [linkPreview, setLinkPreview] = useState<LinkMetadata | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,15 +50,25 @@ export function CaptureModal() {
   const isText = contentType === 'TEXT';
   const isLink = contentType === 'LINK';
   const isFileOrImage = contentType === 'FILE' || contentType === 'IMAGE';
+  const requiresMetadata = !isText;
+  const titleReady = captureForm.title.trim().length > 0;
+  const contentReady = isText || captureForm.content_url.trim().length > 0;
+  const metadataReady = isText || !!captureForm.metadata;
+  const isPreparing = uploading || fetchingMeta || metadataPending;
+  const canSubmit = !saving && !isPreparing && titleReady && contentReady && metadataReady;
 
   const selectedType = CONTENT_TYPES.find(ct => ct.value === contentType) || CONTENT_TYPES[0];
   const SelectedIcon = selectedType.icon;
 
   const fetchMetadata = useCallback(async (url: string) => {
-    if (!url) return;
+    if (!url) {
+      setMetadataPending(false);
+      return;
+    }
     try {
       new URL(url);
     } catch {
+      setMetadataPending(false);
       return;
     }
 
@@ -81,7 +92,6 @@ export function CaptureModal() {
         if (data.title) {
           setCaptureForm({ title: data.title });
         }
-        // Save full metadata for embedding
         const { title: _t, thumbnail: _th, ...metadataForCapture } = preview;
         setCaptureForm({ metadata: metadataForCapture as Record<string, unknown> });
       }
@@ -89,12 +99,14 @@ export function CaptureModal() {
       console.error('Failed to fetch metadata:', e);
     } finally {
       setFetchingMeta(false);
+      setMetadataPending(false);
     }
   }, [setCaptureForm]);
 
   const handleLinkChange = (url: string) => {
-    setCaptureForm({ content_url: url, source: extractDomain(url) });
+    setCaptureForm({ content_url: url, source: extractDomain(url), metadata: null });
     setLinkPreview(null);
+    setMetadataPending(!!url);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -134,9 +146,16 @@ export function CaptureModal() {
         .getPublicUrl(filePath);
 
       const publicUrl = urlData.publicUrl;
-      setCaptureForm({ content_url: publicUrl });
+      const baseMetadata = {
+        original_file_name: file.name,
+        mime_type: file.type || null,
+        file_size: file.size,
+        last_modified: file.lastModified,
+        content_kind: contentType,
+      } as Record<string, unknown>;
 
-      // Auto-generate title for images via AI
+      setCaptureForm({ content_url: publicUrl, metadata: baseMetadata });
+
       if (contentType === 'IMAGE') {
         setFetchingMeta(true);
         const promise = (async () => {
@@ -145,7 +164,14 @@ export function CaptureModal() {
               body: { image_url: publicUrl },
             });
             if (!aiError && data?.title) {
-              setCaptureForm({ title: data.title });
+              setCaptureForm({
+                title: data.title,
+                metadata: {
+                  ...baseMetadata,
+                  visual_summary: data.description || null,
+                  keywords: data.keywords || [],
+                },
+              });
             }
           } catch (err) {
             console.error('Image title generation failed:', err);
@@ -157,7 +183,6 @@ export function CaptureModal() {
         titleGenPromiseRef.current = promise;
       }
 
-      // Auto-generate title for files via AI
       if (contentType === 'FILE') {
         setFetchingMeta(true);
         const promise = (async () => {
@@ -166,7 +191,14 @@ export function CaptureModal() {
               body: { file_url: publicUrl, file_name: file.name },
             });
             if (!aiError && data?.title) {
-              setCaptureForm({ title: data.title });
+              setCaptureForm({
+                title: data.title,
+                metadata: {
+                  ...baseMetadata,
+                  file_summary: data.summary || null,
+                  keywords: data.keywords || [],
+                },
+              });
             }
           } catch (err) {
             console.error('File title generation failed:', err);
@@ -195,7 +227,6 @@ export function CaptureModal() {
         </div>
 
         <div className="space-y-4">
-          {/* Content Type Dropdown */}
           <div className="relative">
             <label className="text-xs text-muted-foreground mb-2 block">입력 형식</label>
             <button
@@ -216,8 +247,9 @@ export function CaptureModal() {
                     <button
                       key={ct.value}
                       onClick={() => {
-                        setCaptureForm({ content_type: ct.value, content_url: '', source: '' });
+                        setCaptureForm({ content_type: ct.value, title: '', content_url: '', source: '', metadata: null });
                         setLinkPreview(null);
+                        setMetadataPending(false);
                         setDropdownOpen(false);
                       }}
                       className={`w-full flex items-center gap-2 px-4 py-3 text-sm hover:bg-accent/10 transition-colors ${
@@ -233,7 +265,6 @@ export function CaptureModal() {
             )}
           </div>
 
-          {/* Link URL input */}
           {isLink && (
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">URL</label>
@@ -244,42 +275,30 @@ export function CaptureModal() {
                 onChange={e => handleLinkChange(e.target.value)}
                 className="w-full bg-synapse-deep border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground focus:outline-none focus:border-accent transition-colors"
               />
-              {captureForm.source && (
-                <p className="text-xs text-accent mt-1">출처: {captureForm.source}</p>
-              )}
-
-              {/* Link Preview */}
-              {fetchingMeta && (
+              {captureForm.source && <p className="text-xs text-accent mt-1">출처: {captureForm.source}</p>}
+              {(fetchingMeta || metadataPending) && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <Loader2 size={14} className="animate-spin" />
                   메타데이터 가져오는 중...
                 </div>
               )}
-              {!fetchingMeta && linkPreview?.thumbnail && (
+              {!fetchingMeta && !metadataPending && linkPreview?.thumbnail && (
                 <div className="mt-3 rounded-lg border border-border overflow-hidden bg-synapse-deep">
-                  <img
-                    src={linkPreview.thumbnail}
-                    alt="Link preview"
-                    className="w-full h-36 object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                  {linkPreview.description && (
-                    <p className="px-3 py-2 text-xs text-muted-foreground line-clamp-2">{linkPreview.description}</p>
-                  )}
+                  <img src={linkPreview.thumbnail} alt="Link preview" className="w-full h-36 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  {linkPreview.description && <p className="px-3 py-2 text-xs text-muted-foreground line-clamp-2">{linkPreview.description}</p>}
                 </div>
               )}
             </div>
           )}
 
-          {/* Title */}
           <div>
             <div className="flex justify-between items-end mb-1">
               <label className="text-xs text-muted-foreground">제목</label>
               {!isText && (
-                fetchingMeta ? (
+                fetchingMeta || metadataPending ? (
                   <span className="text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
                     <Sparkles size={10} />
-                    AI가 제목을 생성 중...
+                    제목/메타데이터 준비 중...
                   </span>
                 ) : (
                   <span className="text-[10px] text-synapse-indigo bg-synapse-indigo/10 px-2 py-0.5 rounded">
@@ -305,36 +324,23 @@ export function CaptureModal() {
                   onChange={e => setCaptureForm({ title: e.target.value })}
                   className="w-full bg-synapse-deep/50 border border-border/50 rounded-lg px-4 py-3 text-foreground/70 placeholder-muted-foreground/60 focus:outline-none focus:border-accent transition-colors italic"
                 />
-                {fetchingMeta && (
-                  <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground" />
-                )}
+                {(fetchingMeta || metadataPending) && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground" />}
               </div>
             )}
           </div>
 
-          {/* File/Image upload */}
           {isFileOrImage && (
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">
-                {contentType === 'IMAGE' ? '이미지 업로드' : '파일 업로드'}
-              </label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={acceptTypes}
-                onChange={handleFileUpload}
-                className="hidden"
-              />
+              <label className="text-xs text-muted-foreground mb-1 block">{contentType === 'IMAGE' ? '이미지 업로드' : '파일 업로드'}</label>
+              <input ref={fileInputRef} type="file" accept={acceptTypes} onChange={handleFileUpload} className="hidden" />
               {captureForm.content_url ? (
                 <div className="space-y-2">
-                  {contentType === 'IMAGE' && (
-                    <img src={captureForm.content_url} alt="preview" className="w-full h-32 object-cover rounded-lg border border-border" />
-                  )}
+                  {contentType === 'IMAGE' && <img src={captureForm.content_url} alt="preview" className="w-full h-32 object-cover rounded-lg border border-border" />}
                   <div className="flex items-center justify-between bg-synapse-deep border border-border rounded-lg px-4 py-3">
                     <span className="text-sm text-foreground truncate">업로드 완료</span>
                     <button
                       onClick={() => {
-                        setCaptureForm({ content_url: '' });
+                        setCaptureForm({ content_url: '', title: '', metadata: null });
                         if (fileInputRef.current) fileInputRef.current.value = '';
                       }}
                       className="text-xs text-muted-foreground hover:text-foreground ml-2"
@@ -349,23 +355,12 @@ export function CaptureModal() {
                   disabled={uploading}
                   className="w-full flex items-center justify-center gap-2 bg-synapse-deep border border-dashed border-border rounded-lg px-4 py-6 text-muted-foreground hover:border-accent/50 hover:text-foreground transition-colors"
                 >
-                  {uploading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      업로드 중...
-                    </>
-                  ) : (
-                    <>
-                      <Upload size={18} />
-                      {contentType === 'IMAGE' ? '이미지 선택' : '파일 선택'}
-                    </>
-                  )}
+                  {uploading ? (<><Loader2 size={18} className="animate-spin" />업로드 중...</>) : (<><Upload size={18} />{contentType === 'IMAGE' ? '이미지 선택' : '파일 선택'}</>)}
                 </button>
               )}
             </div>
           )}
 
-          {/* Description */}
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">메모</label>
             <textarea
@@ -377,7 +372,6 @@ export function CaptureModal() {
             />
           </div>
 
-          {/* Source — only for LINK (auto-filled) */}
           {isLink && (
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">출처</label>
@@ -392,10 +386,10 @@ export function CaptureModal() {
           )}
         </div>
 
-        {saving && (
+        {(saving || isPreparing) && (
           <div className="mt-4 flex items-center gap-2 text-sm text-accent animate-pulse">
             <Sparkles size={16} className="animate-spin" />
-            {fetchingMeta ? '제목을 생성하고 있습니다...' : 'AI가 관련 키워드를 찾고 있습니다...'}
+            {isPreparing ? '제목과 메타데이터를 준비하고 있습니다...' : 'ai_caption 생성 후 키워드를 선택하는 중...'}
           </div>
         )}
 
@@ -405,9 +399,9 @@ export function CaptureModal() {
           </button>
           <button
             onClick={async () => {
+              if (!canSubmit) return;
               setSaving(true);
               try {
-                // Wait for title generation if still in progress
                 if (titleGenPromiseRef.current) {
                   await titleGenPromiseRef.current;
                 }
@@ -415,23 +409,16 @@ export function CaptureModal() {
                 if (result?.keyword_title) {
                   toast({ title: '캡처 완료', description: `"${result.keyword_title}" 키워드에 연결되었습니다.` });
                 } else {
-                  toast({ title: '캡처 실패', description: 'AI 분석에 실패했습니다. 다시 시도해주세요.', variant: 'destructive' });
+                  toast({ title: '캡처 실패', description: '제목, 메타데이터, ai_caption 준비가 완료되지 않았습니다.', variant: 'destructive' });
                 }
               } finally {
                 setSaving(false);
               }
             }}
-            disabled={saving || (isText && !captureForm.title.trim()) || (!isText && !captureForm.content_url.trim())}
+            disabled={!canSubmit}
             className="px-6 py-2 text-sm bg-accent text-accent-foreground rounded-lg font-medium hover:bg-accent/90 transition-colors glow-accent disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {saving ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                분석 중...
-              </>
-            ) : (
-              '캡처 추가'
-            )}
+            {saving ? (<><Loader2 size={14} className="animate-spin" />분석 중...</>) : '캡처 추가'}
           </button>
         </div>
       </div>
