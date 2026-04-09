@@ -414,6 +414,8 @@ export function CaptureModal() {
                 const result = await addCapture();
                 if (result?.keyword_title) {
                   toast({ title: '캡처 완료', description: `"${result.keyword_title}" 키워드에 연결되었습니다.` });
+                } else {
+                  toast({ title: '캡처 실패', description: 'AI 분석에 실패했습니다. 다시 시도해주세요.', variant: 'destructive' });
                 }
               } finally {
                 setSaving(false);
