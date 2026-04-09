@@ -314,6 +314,7 @@ export function NodeDetailPanel() {
   const updateCapture = useGalaxyStore(s => s.updateCapture);
   const updateNode = useGalaxyStore(s => s.updateNode);
   const deleteNode = useGalaxyStore(s => s.deleteNode);
+  const addDetailedKeyword = useGalaxyStore(s => s.addDetailedKeyword);
   const [deleting, setDeleting] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -321,6 +322,9 @@ export function NodeDetailPanel() {
   const [editDesc, setEditDesc] = useState('');
   const [saving, setSaving] = useState(false);
   const [showMovePicker, setShowMovePicker] = useState(false);
+  const [showMoveNodePicker, setShowMoveNodePicker] = useState(false);
+  const [newDk, setNewDk] = useState('');
+  const [addingDk, setAddingDk] = useState(false);
 
   const displayNode = activeNode;
 
