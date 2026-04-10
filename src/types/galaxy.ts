@@ -1,6 +1,6 @@
 export type NodeType = 'center' | 'keyword' | 'detailedKeyword' | 'capture';
 
-export interface GalaxyNode {
+export interface SynapseNode {
   id: string;
   type: NodeType;
   label: string;
