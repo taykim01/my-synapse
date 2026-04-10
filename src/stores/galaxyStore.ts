@@ -54,7 +54,7 @@ interface GalaxyState {
 
   initFromDB: () => Promise<void>;
   startExploration: (keywords: string[]) => Promise<void>;
-  addCapture: () => Promise<{ keyword_id?: string; keyword_title?: string } | null>;
+  addCapture: () => Promise<{ keyword_id?: string; keyword_title?: string; duplicate?: boolean; existing_id?: string } | null>;
   setSelectedNode: (node: GraphNode | null) => void;
   setIsAddingCapture: (v: boolean) => void;
   setCaptureForm: (form: Partial<GalaxyState["captureForm"]>) => void;
