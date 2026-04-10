@@ -54,7 +54,7 @@ interface GalaxyState {
 
   initFromDB: () => Promise<void>;
   startExploration: (keywords: string[]) => Promise<void>;
-  addCapture: () => Promise<{ keyword_id?: string; keyword_title?: string } | null>;
+  addCapture: () => Promise<{ keyword_id?: string; keyword_title?: string; duplicate?: boolean; existing_id?: string } | null>;
   setSelectedNode: (node: GraphNode | null) => void;
   setIsAddingCapture: (v: boolean) => void;
   setCaptureForm: (form: Partial<GalaxyState["captureForm"]>) => void;
@@ -228,6 +228,19 @@ export const useGalaxyStore = create<GalaxyState>((set, get) => ({
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
+
+    // Duplicate detection: check if same title or URL already exists
+    const existingCapture = nodes.find((n) => {
+      if (n.type !== "capture") return false;
+      if (n.title.trim().toLowerCase() === title.toLowerCase()) return true;
+      if (!isText && captureForm.content_url && n.content_url === captureForm.content_url.trim()) return true;
+      return false;
+    });
+    if (existingCapture) {
+      // Highlight existing capture
+      set({ selectedNode: existingCapture, isAddingCapture: false });
+      return { duplicate: true, existing_id: existingCapture.id } as any;
+    }
 
     const { data: aiResult, error: aiError } = await supabase.functions.invoke("assign-capture-keyword", {
       body: {

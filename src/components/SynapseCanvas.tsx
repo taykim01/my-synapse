@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { useGalaxyStore, type GraphNode } from '@/stores/galaxyStore';
+import { toast } from 'sonner';
 
 interface StarBirth {
   x: number; y: number;
@@ -25,13 +26,29 @@ const NODE_COLORS = {
   capture:          { core: '#10b981', glow: 'rgba(16, 185, 129, 0.4)' },
 } as const;
 
-export function GalaxyCanvas() {
+// Thumbnail image cache
+const thumbnailCache = new Map<string, HTMLImageElement | null>();
+
+function loadThumbnail(url: string): HTMLImageElement | null {
+  if (thumbnailCache.has(url)) return thumbnailCache.get(url)!;
+  thumbnailCache.set(url, null); // mark as loading
+  const img = new window.Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => thumbnailCache.set(url, img);
+  img.onerror = () => thumbnailCache.set(url, null);
+  img.src = url;
+  return null;
+}
+
+export function SynapseCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const graphRef = useRef({
     draggedNode: null as GraphNode | null,
     width: 0,
     height: 0,
     camera: { x: 0, y: 0, panX: 0, panY: 0, zoom: 1, targetX: 0 },
+    ctrlDrag: false,
+    dropTarget: null as GraphNode | null,
   });
   const birthsRef = useRef<StarBirth[]>([]);
   const nebulaeRef = useRef<NebulaPatch[]>([]);
@@ -99,10 +116,7 @@ export function GalaxyCanvas() {
       if (captureCount >= 1) {
         const intensity = Math.min(captureCount / 8, 1);
         const baseRadius = 80 + captureCount * 25;
-        // Fuchsia for keywords, Indigo for detailed
-        const color = kw.type === 'keyword'
-          ? '217, 70, 239'
-          : '99, 102, 241';
+        const color = kw.type === 'keyword' ? '217, 70, 239' : '99, 102, 241';
 
         newNebulae.push({
           cx: kw.x, cy: kw.y,
@@ -159,7 +173,6 @@ export function GalaxyCanvas() {
     };
     window.addEventListener('resize', resize);
     resize();
-
 
     let time = 0;
 
@@ -226,23 +239,22 @@ export function GalaxyCanvas() {
         }
       });
 
-      // Update positions
+      // Update positions — REDUCED velocity for slower drag response
       nodes.forEach(node => {
         if (node === draggedNode) return;
-        node.vx = (node.vx || 0) * 0.8 + node.fx * 0.1;
-        node.vy = (node.vy || 0) * 0.8 + node.fy * 0.1;
+        node.vx = (node.vx || 0) * 0.85 + node.fx * 0.06;
+        node.vy = (node.vy || 0) * 0.85 + node.fy * 0.06;
         node.x += node.vx;
         node.y += node.vy;
       });
     };
 
     const render = () => {
-      const { camera, width, height } = graphRef.current;
+      const { camera, width, height, ctrlDrag, draggedNode, dropTarget } = graphRef.current;
       const now = performance.now();
       camera.x += (camera.targetX + camera.panX - camera.x) * 0.08;
       camera.y += (camera.panY - camera.y) * 0.08;
 
-      // Deep background with motion blur
       ctx.fillStyle = 'rgba(5, 5, 10, 0.6)';
       ctx.fillRect(0, 0, width, height);
       ctx.save();
@@ -250,8 +262,6 @@ export function GalaxyCanvas() {
       ctx.scale(camera.zoom, camera.zoom);
 
       time++;
-
-      // (nebula clouds and per-node aura removed for flat style)
 
       // ===== STAR BIRTH EXPLOSIONS =====
       birthsRef.current = birthsRef.current.filter(b => now - b.birth < b.duration);
@@ -329,6 +339,8 @@ export function GalaxyCanvas() {
       const showDetailed = zoom > 0.25;
       const captureAlpha = showCaptures ? Math.min(1, (zoom - 0.55) / 0.15) : 0;
       const detailedAlpha = showDetailed ? Math.min(1, (zoom - 0.25) / 0.1) : 0;
+      const showThumbnails = zoom > 2.0;
+      const thumbnailAlpha = showThumbnails ? Math.min(1, (zoom - 2.0) / 0.5) : 0;
 
       // ===== LINKS (organic curved synapses) =====
       links.forEach(link => {
@@ -345,7 +357,6 @@ export function GalaxyCanvas() {
 
         ctx.beginPath();
         ctx.moveTo(source.x, source.y);
-        // Curved synapse line
         const mx = (source.x + target.x) / 2;
         const my = (source.y + target.y) / 2;
         const offset = 15;
@@ -358,6 +369,20 @@ export function GalaxyCanvas() {
       // Search highlight set
       const searchHighlightNodes = new Set(searchResults.map(r => r.id));
 
+      // ===== CTRL+DRAG DROP TARGET HIGHLIGHT =====
+      if (ctrlDrag && dropTarget) {
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#22d3ee';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(dropTarget.x, dropTarget.y, 25, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
       // ===== NODES =====
       nodes.forEach(node => {
         if (node.type === 'capture' && !showCaptures && !(searchQuery && searchHighlightNodes.has(node.id))) return;
@@ -365,7 +390,6 @@ export function GalaxyCanvas() {
 
         const colors = NODE_COLORS[node.type as keyof typeof NODE_COLORS] || NODE_COLORS.capture;
 
-        // Glow
         let radius = 5;
         if (node.type === 'center') radius = 12;
         else if (node.type === 'keyword') radius = 8;
@@ -376,7 +400,6 @@ export function GalaxyCanvas() {
         ctx.beginPath();
         ctx.fillStyle = colors.core;
 
-        // Apply LOD fade
         let nodeAlpha = 1;
         if (node.type === 'capture') nodeAlpha = captureAlpha;
         else if (node.type === 'detailed_keyword') nodeAlpha = detailedAlpha;
@@ -401,6 +424,31 @@ export function GalaxyCanvas() {
 
         ctx.globalAlpha = 1.0;
 
+        // Thumbnail for captures when zoomed in enough
+        if (node.type === 'capture' && showThumbnails && nodeAlpha > 0.3 && node.content_url) {
+          const isImage = node.content_type === 'IMAGE';
+          if (isImage) {
+            const img = loadThumbnail(node.content_url);
+            if (img) {
+              const thumbSize = 32;
+              ctx.globalAlpha = thumbnailAlpha * nodeAlpha;
+              ctx.save();
+              ctx.beginPath();
+              ctx.roundRect(node.x - thumbSize / 2, node.y - radius - thumbSize - 4, thumbSize, thumbSize, 4);
+              ctx.clip();
+              ctx.drawImage(img, node.x - thumbSize / 2, node.y - radius - thumbSize - 4, thumbSize, thumbSize);
+              ctx.restore();
+              ctx.globalAlpha = thumbnailAlpha * nodeAlpha * 0.5;
+              ctx.strokeStyle = colors.core;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.roundRect(node.x - thumbSize / 2, node.y - radius - thumbSize - 4, thumbSize, thumbSize, 4);
+              ctx.stroke();
+              ctx.globalAlpha = 1.0;
+            }
+          }
+        }
+
         // Labels for non-capture nodes
         if (node.type !== 'capture') {
           if (nodeAlpha > 0.3 && zoom > 0.4) {
@@ -413,10 +461,8 @@ export function GalaxyCanvas() {
           }
         }
 
-        // Capture labels: show small title, hide when zoom would cause overlap
+        // Capture labels
         if (node.type === 'capture' && nodeAlpha > 0.3) {
-          // Show capture labels only when zoomed in enough that they won't overlap
-          // At higher zoom, text appears smaller in world-space, so less overlap
           const showCaptureLabels = zoom > 1.2;
           const isSearchHighlight = searchQuery && searchHighlightNodes.has(node.id);
           if (showCaptureLabels || isSearchHighlight) {
@@ -487,11 +533,29 @@ export function GalaxyCanvas() {
       return Math.sqrt(dx * dx + dy * dy);
     };
 
+    const findNearestDropTarget = (x: number, y: number, excludeId: string): GraphNode | null => {
+      let best: GraphNode | null = null;
+      let bestDist = 30; // snap distance
+      for (const node of nodes) {
+        if (node.id === excludeId) continue;
+        if (node.type !== 'keyword' && node.type !== 'detailed_keyword' && node.type !== 'center') continue;
+        const dx = node.x - x;
+        const dy = node.y - y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = node;
+        }
+      }
+      return best;
+    };
+
     const handleMouseDown = (e: MouseEvent) => {
       const { x, y } = getMousePos(e);
       startX = e.clientX;
       startY = e.clientY;
       isMoved = false;
+      graphRef.current.ctrlDrag = e.ctrlKey || e.metaKey;
       let nodeClicked = false;
 
       for (let i = nodes.length - 1; i >= 0; i--) {
@@ -531,28 +595,73 @@ export function GalaxyCanvas() {
       graphRef.current.draggedNode.y = y;
       graphRef.current.draggedNode.vx = 0;
       graphRef.current.draggedNode.vy = 0;
+
+      // Update ctrl state dynamically
+      graphRef.current.ctrlDrag = e.ctrlKey || e.metaKey;
+
+      // Find drop target if ctrl+dragging
+      if (graphRef.current.ctrlDrag && isMoved) {
+        graphRef.current.dropTarget = findNearestDropTarget(x, y, graphRef.current.draggedNode.id);
+      } else {
+        graphRef.current.dropTarget = null;
+      }
     };
 
-    const handleMouseUp = () => {
-      if (isPanning && !isMoved) {
+    const handleMouseUp = async (e: MouseEvent) => {
+      const dragged = graphRef.current.draggedNode;
+      const drop = graphRef.current.dropTarget;
+      const wasCtrlDrag = graphRef.current.ctrlDrag && isMoved && dragged && drop;
+
+      if (wasCtrlDrag && dragged && drop) {
+        // Perform reparent
+        const store = useGalaxyStore.getState();
+        let ok = false;
+        if (dragged.type === 'capture') {
+          ok = await store.moveCapture(dragged.id, drop.id);
+        } else if (dragged.type === 'keyword' || dragged.type === 'detailed_keyword') {
+          const targetParent = drop.type === 'center' ? null : drop.id;
+          ok = await store.moveNode(dragged.id, targetParent);
+        }
+        if (ok) {
+          toast.success(`"${dragged.title}"을(를) "${drop.title}" 하위로 이동했습니다.`);
+        }
+      } else if (isPanning && !isMoved) {
         setSelectedNode(null);
-      }
-      if (isDragging && graphRef.current.draggedNode && !isMoved) {
-        const clickedType = graphRef.current.draggedNode.type;
+      } else if (isDragging && dragged && !isMoved) {
+        const clickedType = dragged.type;
         if (clickedType === 'capture' || clickedType === 'keyword' || clickedType === 'detailed_keyword' || clickedType === 'center') {
-          setSelectedNode(graphRef.current.draggedNode);
+          setSelectedNode(dragged);
         }
       }
+
       isDragging = false;
       isPanning = false;
       graphRef.current.draggedNode = null;
+      graphRef.current.ctrlDrag = false;
+      graphRef.current.dropTarget = null;
     };
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const zoomFactor = e.deltaY > 0 ? 0.92 : 1.08;
       const cam = graphRef.current.camera;
-      cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * zoomFactor));
+      const { width, height } = graphRef.current;
+      const rect = canvas.getBoundingClientRect();
+
+      // Mouse position in screen coords relative to center
+      const mouseScreenX = e.clientX - rect.left - width / 2 - cam.x;
+      const mouseScreenY = e.clientY - rect.top - height / 2 - cam.y;
+
+      // Mouse position in world coords before zoom
+      const worldX = mouseScreenX / cam.zoom;
+      const worldY = mouseScreenY / cam.zoom;
+
+      const zoomFactor = e.deltaY > 0 ? 0.92 : 1.08;
+      const newZoom = Math.max(0.15, Math.min(4, cam.zoom * zoomFactor));
+
+      // Adjust pan so mouse stays on same world point
+      cam.panX += worldX * (cam.zoom - newZoom);
+      cam.panY += worldY * (cam.zoom - newZoom);
+      cam.zoom = newZoom;
     };
 
     const handleTouchStart = (e: TouchEvent) => {
@@ -592,10 +701,23 @@ export function GalaxyCanvas() {
     const handleTouchMove = (e: TouchEvent) => {
       if (isPinching && e.touches.length === 2) {
         e.preventDefault();
+        const cam = graphRef.current.camera;
         const newDist = getPinchDist(e.touches);
         const scale = newDist / lastPinchDist;
-        const cam = graphRef.current.camera;
-        cam.zoom = Math.max(0.15, Math.min(4, cam.zoom * scale));
+
+        // Pinch center for zoom-to-point
+        const rect = canvas.getBoundingClientRect();
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const mouseScreenX = cx - rect.left - graphRef.current.width / 2 - cam.x;
+        const mouseScreenY = cy - rect.top - graphRef.current.height / 2 - cam.y;
+        const worldX = mouseScreenX / cam.zoom;
+        const worldY = mouseScreenY / cam.zoom;
+
+        const newZoom = Math.max(0.15, Math.min(4, cam.zoom * scale));
+        cam.panX += worldX * (cam.zoom - newZoom);
+        cam.panY += worldY * (cam.zoom - newZoom);
+        cam.zoom = newZoom;
         lastPinchDist = newDist;
         return;
       }

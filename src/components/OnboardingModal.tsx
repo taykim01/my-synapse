@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGalaxyStore } from '@/stores/galaxyStore';
+import { SynapseLogo } from '@/components/SynapseLogo';
 
 const RECOMMENDED_KEYWORDS = [
   '음악', '영화', '독서', '여행', '요리', '운동', '게임',
@@ -39,17 +40,19 @@ export function OnboardingModal() {
       <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-synapse-fuchsia/30 via-background to-background" />
 
       <div className="z-10 max-w-md w-full bg-card/80 backdrop-blur-xl border border-border p-8 rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
-        <h1 className="text-3xl font-display text-primary text-center tracking-wider mb-2">Synapse</h1>
+        <div className="text-center mb-2">
+          <SynapseLogo size="lg" />
+        </div>
         <p className="text-sm text-muted-foreground text-center mb-8 leading-relaxed">
-          생각의 파편을 연결하는 뉴런 네트워크
+          생각의 파편을 연결하는 지식 네트워크
         </p>
 
         <div className="mb-4">
           <p className="text-xs text-muted-foreground mb-1">
-            초기 신경망을 구성할 관심사를 입력해주세요.
+            초기 네트워크를 구성할 관심사를 입력해주세요.
           </p>
           <p className="text-[10px] text-muted-foreground/70">
-            입력하신 관심사는 AI가 조작할 수 없는 고유의 Keyword가 됩니다.
+            입력하신 관심사는 AI가 조작할 수 없는 고유의 키워드가 됩니다.
           </p>
         </div>
 
