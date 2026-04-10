@@ -459,7 +459,9 @@ export function CaptureModal() {
                   await titleGenPromiseRef.current;
                 }
                 const result = await addCapture();
-                if (result?.keyword_title) {
+                if (result?.duplicate) {
+                  toast({ title: "이미 있는 내용입니다", description: "기존 캡처를 하이라이트했습니다." });
+                } else if (result?.keyword_title) {
                   toast({ title: "캡처 완료", description: `"${result.keyword_title}" 키워드에 연결되었습니다.` });
                 } else {
                   toast({
