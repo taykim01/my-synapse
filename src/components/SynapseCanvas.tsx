@@ -177,7 +177,13 @@ export function SynapseCanvas() {
     let time = 0;
 
     const simulate = () => {
-      const { draggedNode } = graphRef.current;
+      const { draggedNode, ctrlDrag } = graphRef.current;
+
+      // Freeze all physics when ctrl+dragging to prevent nodes from repelling
+      if (ctrlDrag && draggedNode) {
+        return;
+      }
+
       const centerNode = nodes.find(n => n.type === 'center');
 
       nodes.forEach(node => { node.fx = 0; node.fy = 0; });
