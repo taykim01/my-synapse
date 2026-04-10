@@ -26,6 +26,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/network" element={user ? <Index /> : <Auth />} />
+      {/* Legacy route redirect */}
       <Route path="/galaxy" element={user ? <Index /> : <Auth />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

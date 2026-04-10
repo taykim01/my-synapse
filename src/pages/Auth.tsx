@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { SynapseLogo } from '@/components/SynapseLogo';
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -30,14 +31,14 @@ export default function Auth() {
         });
         if (error) throw error;
         if (data.session) {
-          navigate('/galaxy');
+          navigate('/network');
         } else {
           toast({ title: '회원가입 완료', description: '이메일을 확인해주세요.' });
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate('/galaxy');
+        navigate('/network');
       }
     } catch (error: any) {
       toast({ title: '오류', description: error.message, variant: 'destructive' });
@@ -52,9 +53,11 @@ export default function Auth() {
 
       <div className="z-10 max-w-md w-full bg-card/80 backdrop-blur-xl border border-border p-8 rounded-2xl shadow-2xl">
         <button onClick={() => navigate('/')} className="text-xs text-muted-foreground hover:text-foreground mb-4 block">← 돌아가기</button>
-        <h1 className="text-3xl font-display text-primary text-center tracking-wider mb-2">Synapse</h1>
+        <div className="text-center mb-2">
+          <SynapseLogo size="lg" />
+        </div>
         <p className="text-sm text-muted-foreground text-center mb-8 leading-relaxed">
-          생각의 파편을 연결하는 뉴런 네트워크
+          생각의 파편을 연결하는 지식 네트워크
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

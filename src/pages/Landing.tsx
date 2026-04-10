@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useScroll, useTransform, useInView } from 'framer-motion';
 import { ArrowRight, Zap, Brain, Network, Sparkles, Link2, Image, FileText, Type } from 'lucide-react';
+import { SynapseLogo } from '@/components/SynapseLogo';
 
 /* ─── Interactive Neural Canvas ─── */
 function NeuralCanvas() {
@@ -22,13 +23,12 @@ function NeuralCanvas() {
     window.addEventListener('resize', resize);
 
     const colors = [
-      'rgba(34,211,238,', // cyan
-      'rgba(217,70,239,', // fuchsia  
-      'rgba(99,102,241,', // indigo
-      'rgba(52,211,153,', // emerald
+      'rgba(34,211,238,',
+      'rgba(217,70,239,',
+      'rgba(99,102,241,',
+      'rgba(52,211,153,',
     ];
 
-    // Init nodes
     const count = Math.min(60, Math.floor(window.innerWidth / 25));
     nodesRef.current = Array.from({ length: count }, () => ({
       x: Math.random() * canvas.width,
@@ -58,7 +58,6 @@ function NeuralCanvas() {
         if (n.x < 0 || n.x > canvas.width) n.vx *= -1;
         if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
 
-        // Mouse attraction
         const dx = mouse.x - n.x;
         const dy = mouse.y - n.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -66,12 +65,10 @@ function NeuralCanvas() {
           n.vx += (dx / dist) * 0.02;
           n.vy += (dy / dist) * 0.02;
         }
-        // Damping
         n.vx *= 0.99;
         n.vy *= 0.99;
       });
 
-      // Draw connections
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           const dx = nodes[i].x - nodes[j].x;
@@ -89,7 +86,6 @@ function NeuralCanvas() {
         }
       }
 
-      // Draw nodes
       nodes.forEach(n => {
         const glow = Math.sin(n.pulse) * 0.3 + 0.7;
         ctx.beginPath();
@@ -231,8 +227,8 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
           >
-            <h1 className="text-6xl md:text-8xl font-display font-bold tracking-tight mb-4">
-              <span className="text-gradient-synapse">Synapse</span>
+            <h1 className="mb-4">
+              <SynapseLogo size="xl" />
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-xl mx-auto mb-2">
               흩어진 생각의 파편들이<br />
@@ -295,7 +291,7 @@ export default function Landing() {
             <p className="text-muted-foreground leading-relaxed">
               유튜브 영상, 기사 링크, 메모, 이미지 — 매일 수많은 정보를 접하지만, 대부분 흩어져 사라집니다.
               Synapse는 AI가 각 정보의 <span className="text-foreground">의미를 분석</span>하여 관련 카테고리에 자동 분류하고,
-              당신만의 <span className="text-foreground">지식 은하</span>를 만들어갑니다.
+              당신만의 <span className="text-foreground">지식 네트워크</span>를 만들어갑니다.
             </p>
           </FadeInSection>
           <FadeInSection delay={0.2}>
@@ -414,7 +410,7 @@ export default function Landing() {
       {/* ── Footer ── */}
       <footer className="border-t border-border py-8 px-6">
         <div className="max-w-4xl mx-auto flex justify-between items-center text-xs text-muted-foreground">
-          <span className="font-display tracking-wider">SYNAPSE</span>
+          <SynapseLogo size="sm" />
           <span>© 2026 Synapse. All rights reserved.</span>
         </div>
       </footer>
