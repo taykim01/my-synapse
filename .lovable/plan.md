@@ -1,23 +1,33 @@
 
 
-## Problem
+## Tutorial for New Users
 
-The `fetch-url-metadata` edge function fails with "Maximum number of redirects (20) reached" for certain URLs (e.g., `https://www.nyrr.org/tcsnycmarathon`). These sites create infinite redirect loops that Deno's fetch cannot resolve, causing a 500 error.
+### Approach
+A passive, slideshow-style tutorial overlay — no user actions required. The user just clicks "Next" or swipes through 4-5 short slides explaining the core concepts. Fast, minimal energy.
 
-## Solution
+### Slides Content (4 slides)
+1. **네트워크 구조** — "나"를 중심으로 관심사 → 세부 키워드 → 캡처가 연결됩니다 (with legend colors)
+2. **캡처 추가** — 오른쪽 하단 + 버튼으로 텍스트, 링크, 파일, 이미지를 저장하세요. AI가 자동으로 분류합니다.
+3. **노드 탐색** — 노드를 클릭하면 상세 정보를 볼 수 있고, 검색으로 빠르게 찾을 수 있습니다.
+4. **자동 연결** — 캡처가 쌓이면 AI가 유사한 것끼리 세부 키워드로 묶어줍니다.
 
-Two changes to `supabase/functions/fetch-url-metadata/index.ts`:
+### Technical Plan
 
-1. **Handle redirects manually** in `fetchGeneralMetadata` -- use `redirect: 'manual'` and follow redirects manually with a cap of 5 hops. This prevents the infinite redirect loop.
+**1. Create `src/components/TutorialOverlay.tsx`**
+- Full-screen overlay with backdrop blur
+- Array of slide objects (icon, title, description)
+- Step indicator dots at bottom
+- "다음" / "시작하기" buttons
+- Smooth fade/slide transitions between steps
+- Stores completion in `localStorage` key `synapse_tutorial_seen`
 
-2. **Graceful fallback on failure** -- if fetching still fails (timeout, redirect loop, blocked by WAF, etc.), return a partial metadata response using the URL's domain as `site_name` and a cleaned-up path as `title`, instead of returning a 500 error. This ensures captures can always be created even when metadata extraction fails.
+**2. Modify `src/pages/Index.tsx`**
+- Import `TutorialOverlay`
+- Show it when `localStorage.getItem('synapse_tutorial_seen')` is not `'true'` (first visit)
+- Add `HelpCircle` icon button next to the `LogOut` button in the header
+- Clicking it sets state to re-show the tutorial
 
-## Technical Details
-
-**File: `supabase/functions/fetch-url-metadata/index.ts`**
-
-- Add a `fetchWithRedirects(url, headers, maxRedirects=5)` helper that uses `redirect: 'manual'` and follows `Location` headers up to 5 times
-- Replace `fetch()` calls in `fetchGeneralMetadata` with this helper
-- Wrap the top-level try/catch to return fallback metadata (`{ title: hostname + path, thumbnail: '', description: '', site_name: hostname }`) instead of a 500 error
-- Add a timeout via `AbortSignal.timeout(10000)` to prevent hanging on slow sites
+**3. Files changed**
+- `src/components/TutorialOverlay.tsx` (new)
+- `src/pages/Index.tsx` (modified)
 
