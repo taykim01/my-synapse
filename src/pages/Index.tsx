@@ -20,6 +20,7 @@ const Index = () => {
   const nodes = useGalaxyStore(s => s.nodes);
   const initFromDB = useGalaxyStore(s => s.initFromDB);
   const { signOut, user } = useAuth();
+  const [showTutorial, setShowTutorial] = useState(!localStorage.getItem('synapse_tutorial_seen'));
 
   useEffect(() => {
     if (user) initFromDB();
