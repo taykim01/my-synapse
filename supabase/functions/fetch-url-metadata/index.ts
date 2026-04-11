@@ -54,7 +54,8 @@ async function fetchYouTubeMetadata(url: string): Promise<UrlMetadata> {
   // 1. Try oEmbed for basic info (title, author)
   try {
     const oembedRes = await fetch(
-      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
+      { signal: AbortSignal.timeout(10000) }
     );
     if (oembedRes.ok) {
       const data = await oembedRes.json();
@@ -72,13 +73,10 @@ async function fetchYouTubeMetadata(url: string): Promise<UrlMetadata> {
 
   // 2. Fetch HTML page for description, tags, category
   try {
-    const htmlRes = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SynapseBot/1.0)',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
-      },
-      redirect: 'follow',
+    const htmlRes = await fetchWithRedirects(url, {
+      'User-Agent': 'Mozilla/5.0 (compatible; SynapseBot/1.0)',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
     });
     const html = await htmlRes.text();
 
