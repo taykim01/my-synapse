@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Network, Plus, Search, MousePointerClick, Sparkles, ChevronRight, HelpCircle } from 'lucide-react';
 
@@ -6,7 +6,7 @@ interface TutorialStep {
   icon: React.ReactNode;
   title: string;
   description: string;
-  targetSelector?: string; // CSS selector for the element to highlight
+  targetSelector?: string;
   tooltipPosition?: 'top' | 'bottom' | 'left' | 'right';
   details?: React.ReactNode;
 }
@@ -86,6 +86,8 @@ interface TutorialOverlayProps {
 export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
   const [step, setStep] = useState(0);
   const [spotlight, setSpotlight] = useState<SpotlightRect | null>(null);
+  const [cardSize, setCardSize] = useState({ width: 288, height: 220 });
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const current = steps[step];
   const isLast = step === steps.length - 1;
 
@@ -113,6 +115,23 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
     return () => window.removeEventListener('resize', updateSpotlight);
   }, [updateSpotlight]);
 
+  useLayoutEffect(() => {
+    const element = cardRef.current;
+    if (!element) return;
+
+    const updateCardSize = () => {
+      const rect = element.getBoundingClientRect();
+      setCardSize({ width: rect.width, height: rect.height });
+    };
+
+    updateCardSize();
+
+    const observer = new ResizeObserver(updateCardSize);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [step]);
+
   const handleNext = () => {
     if (isLast) {
       localStorage.setItem('synapse_tutorial_seen', 'true');
@@ -127,8 +146,6 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
     onClose();
   };
 
-  const CARD_W = 288; // w-72
-  const CARD_H = 220; // approximate height
   const GAP = 16;
   const MARGIN = 12;
 
@@ -141,40 +158,38 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const pos = current.tooltipPosition;
+    const { width: cardWidth, height: cardHeight } = cardSize;
 
     let top = 0;
     let left = 0;
 
-    switch (pos) {
+    switch (current.tooltipPosition) {
       case 'right':
         top = spotlight.top;
         left = spotlight.left + spotlight.width + GAP;
         break;
       case 'left':
-        top = spotlight.top + spotlight.height / 2 - CARD_H / 2;
-        left = spotlight.left - GAP - CARD_W;
+        top = spotlight.top + spotlight.height / 2 - cardHeight / 2;
+        left = spotlight.left - GAP - cardWidth;
         break;
       case 'bottom':
         top = spotlight.top + spotlight.height + GAP;
-        left = spotlight.left + spotlight.width / 2 - CARD_W / 2;
+        left = spotlight.left + spotlight.width / 2 - cardWidth / 2;
         break;
       case 'top':
-        top = spotlight.top - GAP - CARD_H;
-        left = spotlight.left + spotlight.width / 2 - CARD_W / 2;
+        top = spotlight.top - GAP - cardHeight;
+        left = spotlight.left + spotlight.width / 2 - cardWidth / 2;
         break;
     }
 
-    // Clamp to viewport
-    top = clamp(top, MARGIN, vh - CARD_H - MARGIN);
-    left = clamp(left, MARGIN, vw - CARD_W - MARGIN);
+    top = clamp(top, MARGIN, vh - cardHeight - MARGIN);
+    left = clamp(left, MARGIN, vw - cardWidth - MARGIN);
 
     return { position: 'fixed', top, left };
   };
 
   return (
     <div className="fixed inset-0 z-50">
-      {/* Dark overlay with spotlight cutout using CSS mask */}
       <div
         className="absolute inset-0 transition-all duration-300"
         style={{
@@ -189,7 +204,6 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
         onClick={handleNext}
       />
 
-      {/* Spotlight ring */}
       {spotlight && (
         <motion.div
           layoutId="spotlight-ring"
@@ -207,16 +221,16 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
         />
       )}
 
-      {/* Tooltip card */}
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
+          ref={cardRef}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.25 }}
           style={getTooltipStyle()}
-          className="z-50 w-72 bg-card border border-border rounded-xl p-5 shadow-2xl"
+          className="z-50 w-72 max-w-[calc(100vw-24px)] max-h-[calc(100vh-24px)] overflow-y-auto bg-card border border-border rounded-xl p-5 shadow-2xl"
         >
           <div className="flex items-start gap-3 mb-3">
             {current.icon}
@@ -228,7 +242,6 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
 
           {current.details && <div className="mb-3 pl-1">{current.details}</div>}
 
-          {/* Footer */}
           <div className="flex items-center justify-between pt-2 border-t border-border/50">
             <div className="flex gap-1.5">
               {steps.map((_, i) => (
