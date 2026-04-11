@@ -6,6 +6,7 @@ import { CaptureModal } from '@/components/CaptureModal';
 import { NodeDetailPanel } from '@/components/NodeDetailPanel';
 import { useGalaxyStore } from '@/stores/galaxyStore';
 import { useAuth } from '@/hooks/useAuth';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
 import { SynapseLogo } from '@/components/SynapseLogo';
 
 const Index = () => {
