@@ -127,57 +127,49 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
     onClose();
   };
 
-  // Calculate tooltip position relative to spotlight
+  const CARD_W = 288; // w-72
+  const CARD_H = 220; // approximate height
+  const GAP = 16;
+  const MARGIN = 12;
+
+  const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
+
   const getTooltipStyle = (): React.CSSProperties => {
     if (!spotlight || !current.tooltipPosition) {
-      // Center the card
-      return {
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-      };
+      return { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
     }
 
-    const gap = 16;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
     const pos = current.tooltipPosition;
+
+    let top = 0;
+    let left = 0;
 
     switch (pos) {
       case 'right':
-        return {
-          position: 'fixed',
-          top: spotlight.top,
-          left: spotlight.left + spotlight.width + gap,
-        };
+        top = spotlight.top;
+        left = spotlight.left + spotlight.width + GAP;
+        break;
       case 'left':
-        return {
-          position: 'fixed',
-          top: spotlight.top + spotlight.height / 2,
-          left: spotlight.left - gap,
-          transform: 'translate(-100%, -50%)',
-        };
+        top = spotlight.top + spotlight.height / 2 - CARD_H / 2;
+        left = spotlight.left - GAP - CARD_W;
+        break;
       case 'bottom':
-        return {
-          position: 'fixed',
-          top: spotlight.top + spotlight.height + gap,
-          left: spotlight.left + spotlight.width / 2,
-          transform: 'translateX(-50%)',
-        };
+        top = spotlight.top + spotlight.height + GAP;
+        left = spotlight.left + spotlight.width / 2 - CARD_W / 2;
+        break;
       case 'top':
-        return {
-          position: 'fixed',
-          top: spotlight.top - gap,
-          left: spotlight.left + spotlight.width / 2,
-          transform: 'translate(-50%, -100%)',
-        };
-      default:
-        return {
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-        };
+        top = spotlight.top - GAP - CARD_H;
+        left = spotlight.left + spotlight.width / 2 - CARD_W / 2;
+        break;
     }
+
+    // Clamp to viewport
+    top = clamp(top, MARGIN, vh - CARD_H - MARGIN);
+    left = clamp(left, MARGIN, vw - CARD_W - MARGIN);
+
+    return { position: 'fixed', top, left };
   };
 
   return (
