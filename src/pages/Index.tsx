@@ -59,13 +59,14 @@ const Index = () => {
             onClick={() => setShowTutorial(true)}
             className="text-muted-foreground hover:text-foreground transition-colors"
             title="튜토리얼"
+            data-tutorial="help"
           >
             <HelpCircle size={18} />
           </button>
         </div>
 
         {/* Search */}
-        <div className="pointer-events-auto relative">
+        <div className="pointer-events-auto relative" data-tutorial="search">
           <input
             type="text"
             placeholder="노드 또는 키워드 검색..."
@@ -111,7 +112,7 @@ const Index = () => {
       </header>
 
       {/* Legend */}
-      <div className="absolute bottom-6 left-6 z-10 bg-card/60 backdrop-blur p-4 rounded-lg border border-border text-xs text-muted-foreground space-y-2 pointer-events-none">
+      <div data-tutorial="legend" className="absolute bottom-6 left-6 z-10 bg-card/60 backdrop-blur p-4 rounded-lg border border-border text-xs text-muted-foreground space-y-2 pointer-events-none">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-primary shadow-[0_0_8px_hsl(187,80%,48%)]" /> 나
         </div>
@@ -128,6 +129,7 @@ const Index = () => {
 
       {/* FAB */}
       <button
+        data-tutorial="fab"
         onClick={() => { (window as any).gtag?.('event', 'click_new_capture'); openCaptureModal(); }}
         className="absolute bottom-10 right-10 z-10 w-14 h-14 bg-accent text-accent-foreground rounded-full flex items-center justify-center shadow-[0_0_20px_hsl(160,84%,39%,0.4)] hover:scale-105 transition-transform"
       >
