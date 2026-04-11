@@ -518,7 +518,7 @@ export function NodeDetailPanel() {
               placeholder="새 세부 키워드 추가"
               className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
             />
-            <button type="submit" disabled={addingDk || !newDk.trim()} className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs hover:bg-secondary/90 disabled:opacity-50">
+            <button type="submit" disabled={addingDk || !newDk.trim()} className="px-3 py-2 rounded-lg bg-synapse-indigo text-white text-xs hover:bg-synapse-indigo/90 disabled:opacity-50">
               {addingDk ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             </button>
           </form>
