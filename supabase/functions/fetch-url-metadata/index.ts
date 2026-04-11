@@ -134,15 +134,32 @@ async function fetchYouTubeMetadata(url: string): Promise<UrlMetadata> {
   return result;
 }
 
+async function fetchWithRedirects(url: string, headers: Record<string, string>, maxRedirects = 5): Promise<Response> {
+  let currentUrl = url;
+  for (let i = 0; i < maxRedirects; i++) {
+    const res = await fetch(currentUrl, {
+      headers,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('Location');
+      if (!location) break;
+      currentUrl = new URL(location, currentUrl).href;
+      continue;
+    }
+    return res;
+  }
+  throw new Error('Too many redirects');
+}
+
 async function fetchGeneralMetadata(url: string): Promise<UrlMetadata> {
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; SynapseBot/1.0)',
-      'Accept': 'text/html,application/xhtml+xml',
-      'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
-    },
-    redirect: 'follow',
-  });
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (compatible; SynapseBot/1.0)',
+    'Accept': 'text/html,application/xhtml+xml',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+  };
+  const response = await fetchWithRedirects(url, headers);
 
   const html = await response.text();
 
