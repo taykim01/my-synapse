@@ -22,6 +22,7 @@ const Index = () => {
   const initFromDB = useGalaxyStore(s => s.initFromDB);
   const { signOut, user } = useAuth();
   const [showTutorial, setShowTutorial] = useState(!localStorage.getItem('synapse_tutorial_seen'));
+  const captureCount = useMemo(() => nodes.filter(n => n.type === 'capture').length, [nodes]);
 
   useEffect(() => {
     if (user) initFromDB();
