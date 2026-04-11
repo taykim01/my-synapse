@@ -21,8 +21,16 @@ const Index = () => {
   const nodes = useGalaxyStore(s => s.nodes);
   const initFromDB = useGalaxyStore(s => s.initFromDB);
   const { signOut, user } = useAuth();
-  const [showTutorial, setShowTutorial] = useState(!localStorage.getItem('synapse_tutorial_seen'));
+  const [showTutorial, setShowTutorial] = useState(false);
   const captureCount = useMemo(() => nodes.filter(n => n.type === 'capture').length, [nodes]);
+
+  // Show tutorial only on first-ever /network visit
+  useEffect(() => {
+    if (!localStorage.getItem('synapse_tutorial_seen')) {
+      setShowTutorial(true);
+      localStorage.setItem('synapse_tutorial_seen', 'true');
+    }
+  }, []);
 
   useEffect(() => {
     if (user) initFromDB();
