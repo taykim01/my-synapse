@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, LogOut, HelpCircle } from 'lucide-react';
 import { SynapseCanvas } from '@/components/SynapseCanvas';
@@ -8,6 +8,7 @@ import { useGalaxyStore } from '@/stores/galaxyStore';
 import { useAuth } from '@/hooks/useAuth';
 import { TutorialOverlay } from '@/components/TutorialOverlay';
 import { SynapseLogo } from '@/components/SynapseLogo';
+import { SurveyPopup } from '@/components/SurveyPopup';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ const Index = () => {
   const initFromDB = useGalaxyStore(s => s.initFromDB);
   const { signOut, user } = useAuth();
   const [showTutorial, setShowTutorial] = useState(!localStorage.getItem('synapse_tutorial_seen'));
+  const captureCount = useMemo(() => nodes.filter(n => n.type === 'capture').length, [nodes]);
 
   useEffect(() => {
     if (user) initFromDB();
@@ -144,6 +146,9 @@ const Index = () => {
 
       {/* Tutorial */}
       {showTutorial && <TutorialOverlay onClose={() => setShowTutorial(false)} />}
+
+      {/* Survey */}
+      <SurveyPopup captureCount={captureCount} />
     </div>
   );
 };
