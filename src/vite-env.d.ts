@@ -1,9 +1,5 @@
 /// <reference types="vite/client" />
 
-declare global {
-  interface Window {
-    gtag?: (...args: unknown[]) => void;
-  }
+interface Window {
+  gtag?: (...args: any[]) => void;
 }
-
-export {};
