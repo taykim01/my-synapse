@@ -80,7 +80,7 @@ const Index = () => {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-foreground truncate">{r.title}</p>
                     <p className="text-[10px] text-muted-foreground">
-                      {r.type === 'keyword' ? '관심사' : r.type === 'detailed_keyword' ? '세부 주제' : r.content_type}
+                      {r.type === 'keyword' ? '관심사' : r.type === 'detailed_keyword' ? '세부 키워드' : r.content_type}
                     </p>
                   </div>
                   {r.similarity !== undefined && (
@@ -110,7 +110,7 @@ const Index = () => {
           <div className="w-2.5 h-2.5 rounded-full bg-secondary shadow-[0_0_8px_hsl(292,84%,61%)]" /> 관심사
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-synapse-indigo shadow-[0_0_8px_hsl(239,84%,67%)]" /> 세부 주제
+          <div className="w-2 h-2 rounded-full bg-synapse-indigo shadow-[0_0_8px_hsl(239,84%,67%)]" /> 세부 키워드
         </div>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_4px_hsl(160,84%,39%)]" /> 캡처
