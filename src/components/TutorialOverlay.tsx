@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Network, Plus, Search, MousePointerClick, Sparkles, ChevronRight, HelpCircle } from 'lucide-react';
 
@@ -86,8 +86,8 @@ interface TutorialOverlayProps {
 export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
   const [step, setStep] = useState(0);
   const [spotlight, setSpotlight] = useState<SpotlightRect | null>(null);
-  const [cardSize, setCardSize] = useState({ width: 288, height: 220 });
-  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const current = steps[step];
   const isLast = step === steps.length - 1;
 
@@ -115,28 +115,79 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
     return () => window.removeEventListener('resize', updateSpotlight);
   }, [updateSpotlight]);
 
-  useLayoutEffect(() => {
-    const element = cardRef.current;
-    if (!element) return;
+  // Position the tooltip AFTER it renders so we can measure its real size
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
 
-    const updateCardSize = () => {
-      const rect = element.getBoundingClientRect();
-      setCardSize({ width: rect.width, height: rect.height });
-    };
+    // Use rAF to ensure the card has been laid out
+    const raf = requestAnimationFrame(() => {
+      const cardRect = card.getBoundingClientRect();
+      const cardW = cardRect.width;
+      const cardH = cardRect.height;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const GAP = 16;
+      const MARGIN = 12;
 
-    updateCardSize();
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-    const observer = new ResizeObserver(updateCardSize);
-    observer.observe(element);
+      if (!spotlight || !current.tooltipPosition) {
+        setTooltipPos({
+          top: clamp((vh - cardH) / 2, MARGIN, vh - cardH - MARGIN),
+          left: clamp((vw - cardW) / 2, MARGIN, vw - cardW - MARGIN),
+        });
+        return;
+      }
 
-    return () => observer.disconnect();
-  }, [step]);
+      let top = 0;
+      let left = 0;
+
+      switch (current.tooltipPosition) {
+        case 'right':
+          top = spotlight.top;
+          left = spotlight.left + spotlight.width + GAP;
+          break;
+        case 'left':
+          top = spotlight.top + spotlight.height / 2 - cardH / 2;
+          left = spotlight.left - GAP - cardW;
+          break;
+        case 'bottom':
+          top = spotlight.top + spotlight.height + GAP;
+          left = spotlight.left + spotlight.width / 2 - cardW / 2;
+          break;
+        case 'top':
+          top = spotlight.top - GAP - cardH;
+          left = spotlight.left + spotlight.width / 2 - cardW / 2;
+          break;
+      }
+
+      // If preferred position puts card off-screen, flip to opposite side
+      if (current.tooltipPosition === 'left' && left < MARGIN) {
+        left = spotlight.left + spotlight.width + GAP;
+      } else if (current.tooltipPosition === 'right' && left + cardW > vw - MARGIN) {
+        left = spotlight.left - GAP - cardW;
+      } else if (current.tooltipPosition === 'top' && top < MARGIN) {
+        top = spotlight.top + spotlight.height + GAP;
+      } else if (current.tooltipPosition === 'bottom' && top + cardH > vh - MARGIN) {
+        top = spotlight.top - GAP - cardH;
+      }
+
+      top = clamp(top, MARGIN, vh - cardH - MARGIN);
+      left = clamp(left, MARGIN, vw - cardW - MARGIN);
+
+      setTooltipPos({ top, left });
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [step, spotlight, current.tooltipPosition]);
 
   const handleNext = () => {
     if (isLast) {
       localStorage.setItem('synapse_tutorial_seen', 'true');
       onClose();
     } else {
+      setTooltipPos(null); // reset before next step
       setStep(s => s + 1);
     }
   };
@@ -144,48 +195,6 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
   const handleSkip = () => {
     localStorage.setItem('synapse_tutorial_seen', 'true');
     onClose();
-  };
-
-  const GAP = 16;
-  const MARGIN = 12;
-
-  const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
-
-  const getTooltipStyle = (): React.CSSProperties => {
-    if (!spotlight || !current.tooltipPosition) {
-      return { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
-    }
-
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const { width: cardWidth, height: cardHeight } = cardSize;
-
-    let top = 0;
-    let left = 0;
-
-    switch (current.tooltipPosition) {
-      case 'right':
-        top = spotlight.top;
-        left = spotlight.left + spotlight.width + GAP;
-        break;
-      case 'left':
-        top = spotlight.top + spotlight.height / 2 - cardHeight / 2;
-        left = spotlight.left - GAP - cardWidth;
-        break;
-      case 'bottom':
-        top = spotlight.top + spotlight.height + GAP;
-        left = spotlight.left + spotlight.width / 2 - cardWidth / 2;
-        break;
-      case 'top':
-        top = spotlight.top - GAP - cardHeight;
-        left = spotlight.left + spotlight.width / 2 - cardWidth / 2;
-        break;
-    }
-
-    top = clamp(top, MARGIN, vh - cardHeight - MARGIN);
-    left = clamp(left, MARGIN, vw - cardWidth - MARGIN);
-
-    return { position: 'fixed', top, left };
   };
 
   return (
@@ -225,12 +234,16 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
         <motion.div
           key={step}
           ref={cardRef}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.25 }}
-          style={getTooltipStyle()}
-          className="z-50 w-72 max-w-[calc(100vw-24px)] max-h-[calc(100vh-24px)] overflow-y-auto bg-card border border-border rounded-xl p-5 shadow-2xl"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: tooltipPos ? 1 : 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          style={{
+            position: 'fixed',
+            top: tooltipPos?.top ?? -9999,
+            left: tooltipPos?.left ?? -9999,
+          }}
+          className="z-50 w-72 bg-card border border-border rounded-xl p-5 shadow-2xl"
         >
           <div className="flex items-start gap-3 mb-3">
             {current.icon}
