@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, LogOut } from 'lucide-react';
+import { Search, Plus, LogOut, HelpCircle } from 'lucide-react';
 import { SynapseCanvas } from '@/components/SynapseCanvas';
 import { CaptureModal } from '@/components/CaptureModal';
 import { NodeDetailPanel } from '@/components/NodeDetailPanel';
 import { useGalaxyStore } from '@/stores/galaxyStore';
 import { useAuth } from '@/hooks/useAuth';
+import { TutorialOverlay } from '@/components/TutorialOverlay';
 import { SynapseLogo } from '@/components/SynapseLogo';
 
 const Index = () => {
@@ -19,6 +20,7 @@ const Index = () => {
   const nodes = useGalaxyStore(s => s.nodes);
   const initFromDB = useGalaxyStore(s => s.initFromDB);
   const { signOut, user } = useAuth();
+  const [showTutorial, setShowTutorial] = useState(!localStorage.getItem('synapse_tutorial_seen'));
 
   useEffect(() => {
     if (user) initFromDB();
@@ -52,6 +54,13 @@ const Index = () => {
             title="로그아웃"
           >
             <LogOut size={18} />
+          </button>
+          <button
+            onClick={() => setShowTutorial(true)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="튜토리얼"
+          >
+            <HelpCircle size={18} />
           </button>
         </div>
 
@@ -130,6 +139,9 @@ const Index = () => {
 
       {/* Capture Modal */}
       {isAddingCapture && <CaptureModal />}
+
+      {/* Tutorial */}
+      {showTutorial && <TutorialOverlay onClose={() => setShowTutorial(false)} />}
     </div>
   );
 };
