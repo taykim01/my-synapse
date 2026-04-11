@@ -146,6 +146,9 @@ const Index = () => {
 
       {/* Tutorial */}
       {showTutorial && <TutorialOverlay onClose={() => setShowTutorial(false)} />}
+
+      {/* Survey */}
+      <SurveyPopup captureCount={captureCount} />
     </div>
   );
 };
