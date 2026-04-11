@@ -12,15 +12,10 @@ interface SurveyPopupProps {
 export function SurveyPopup({ captureCount }: SurveyPopupProps) {
   const [visible, setVisible] = useState(false);
 
-  const prevCountRef = useState(() => captureCount)[0];
-  const [prevCount, setPrevCount] = useState(prevCountRef);
-
   useEffect(() => {
-    // Only trigger when crossing the threshold of 5, not on every load
-    if (prevCount < 5 && captureCount >= 5 && !localStorage.getItem(DISMISSED_KEY)) {
+    if (captureCount >= 5 && !localStorage.getItem(DISMISSED_KEY)) {
       setVisible(true);
     }
-    setPrevCount(captureCount);
   }, [captureCount]);
 
   const dismiss = () => {
