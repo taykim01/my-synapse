@@ -139,6 +139,9 @@ const Index = () => {
 
       {/* Capture Modal */}
       {isAddingCapture && <CaptureModal />}
+
+      {/* Tutorial */}
+      {showTutorial && <TutorialOverlay onClose={() => setShowTutorial(false)} />}
     </div>
   );
 };
