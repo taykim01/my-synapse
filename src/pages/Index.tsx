@@ -55,6 +55,13 @@ const Index = () => {
           >
             <LogOut size={18} />
           </button>
+          <button
+            onClick={() => setShowTutorial(true)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="튜토리얼"
+          >
+            <HelpCircle size={18} />
+          </button>
         </div>
 
         {/* Search */}
