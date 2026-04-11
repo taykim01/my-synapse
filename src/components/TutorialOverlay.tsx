@@ -1,78 +1,83 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Network, Plus, MousePointerClick, Sparkles, ChevronRight } from 'lucide-react';
+import { Network, Plus, Search, MousePointerClick, Sparkles, ChevronRight, HelpCircle } from 'lucide-react';
 
-interface TutorialSlide {
+interface TutorialStep {
   icon: React.ReactNode;
   title: string;
   description: string;
-  details: React.ReactNode;
+  targetSelector?: string; // CSS selector for the element to highlight
+  tooltipPosition?: 'top' | 'bottom' | 'left' | 'right';
+  details?: React.ReactNode;
 }
 
-const slides: TutorialSlide[] = [
+const steps: TutorialStep[] = [
   {
-    icon: <Network className="w-10 h-10 text-primary" />,
+    icon: <Network className="w-8 h-8 text-primary" />,
     title: '네트워크 구조',
-    description: '"나"를 중심으로 지식이 계층적으로 연결됩니다.',
+    description: '"나"를 중심으로 관심사 → 세부 키워드 → 캡처가 연결됩니다.',
+    targetSelector: '[data-tutorial="legend"]',
+    tooltipPosition: 'right',
     details: (
-      <div className="space-y-3 text-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-4 h-4 rounded-full bg-primary shadow-[0_0_10px_hsl(187,80%,48%)]" />
-          <span className="text-foreground/80">나 — 네트워크의 중심</span>
+      <div className="space-y-2 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-primary shadow-[0_0_8px_hsl(187,80%,48%)]" />
+          <span className="text-foreground/80">나 — 중심</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="w-3.5 h-3.5 rounded-full bg-secondary shadow-[0_0_10px_hsl(292,84%,61%)]" />
-          <span className="text-foreground/80">관심사 — 큰 주제 카테고리</span>
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-secondary shadow-[0_0_8px_hsl(292,84%,61%)]" />
+          <span className="text-foreground/80">관심사</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-synapse-indigo shadow-[0_0_10px_hsl(239,84%,67%)]" />
-          <span className="text-foreground/80">세부 키워드 — 하위 분류</span>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-synapse-indigo shadow-[0_0_8px_hsl(239,84%,67%)]" />
+          <span className="text-foreground/80">세부 키워드</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-accent shadow-[0_0_6px_hsl(160,84%,39%)]" />
-          <span className="text-foreground/80">캡처 — 저장한 콘텐츠</span>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_4px_hsl(160,84%,39%)]" />
+          <span className="text-foreground/80">캡처</span>
         </div>
       </div>
     ),
   },
   {
-    icon: <Plus className="w-10 h-10 text-accent" />,
+    icon: <Plus className="w-8 h-8 text-accent" />,
     title: '캡처 추가',
-    description: '오른쪽 하단 + 버튼을 눌러 콘텐츠를 저장하세요.',
-    details: (
-      <div className="space-y-2 text-sm text-foreground/70">
-        <p>📝 텍스트 메모</p>
-        <p>🔗 URL 링크</p>
-        <p>📄 파일 업로드</p>
-        <p>🖼️ 이미지</p>
-        <p className="text-accent pt-2 text-xs">AI가 자동으로 관련 키워드에 연결합니다.</p>
-      </div>
-    ),
+    description: '이 버튼을 눌러 텍스트, 링크, 파일, 이미지를 저장하세요. AI가 자동으로 분류합니다.',
+    targetSelector: '[data-tutorial="fab"]',
+    tooltipPosition: 'left',
   },
   {
-    icon: <MousePointerClick className="w-10 h-10 text-secondary" />,
+    icon: <Search className="w-8 h-8 text-foreground" />,
+    title: '검색',
+    description: '노드나 키워드를 검색해서 빠르게 찾을 수 있습니다.',
+    targetSelector: '[data-tutorial="search"]',
+    tooltipPosition: 'bottom',
+  },
+  {
+    icon: <MousePointerClick className="w-8 h-8 text-secondary" />,
     title: '노드 탐색',
-    description: '노드를 클릭하면 상세 정보를 확인할 수 있습니다.',
-    details: (
-      <div className="space-y-2 text-sm text-foreground/70">
-        <p>• 노드 클릭 → 상세 패널 열기</p>
-        <p>• 우측 상단 검색으로 빠르게 찾기</p>
-        <p>• 드래그로 캔버스 이동, 스크롤로 확대/축소</p>
-      </div>
-    ),
+    description: '캔버스의 노드를 클릭하면 상세 정보를 볼 수 있습니다. 드래그로 이동, 스크롤로 확대/축소하세요.',
   },
   {
-    icon: <Sparkles className="w-10 h-10 text-synapse-indigo" />,
+    icon: <Sparkles className="w-8 h-8 text-synapse-indigo" />,
     title: '자동 연결',
-    description: '캡처가 쌓이면 AI가 유사한 것끼리 묶어줍니다.',
-    details: (
-      <div className="space-y-2 text-sm text-foreground/70">
-        <p>비슷한 캡처들이 자동으로 세부 키워드 아래 그룹화됩니다.</p>
-        <p>저장만 하세요 — 정리는 AI가 알아서 합니다.</p>
-      </div>
-    ),
+    description: '캡처가 쌓이면 AI가 유사한 것끼리 세부 키워드로 묶어줍니다. 저장만 하세요!',
+  },
+  {
+    icon: <HelpCircle className="w-8 h-8 text-muted-foreground" />,
+    title: '다시 보기',
+    description: '이 버튼을 누르면 언제든 튜토리얼을 다시 볼 수 있습니다.',
+    targetSelector: '[data-tutorial="help"]',
+    tooltipPosition: 'bottom',
   },
 ];
+
+interface SpotlightRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
 
 interface TutorialOverlayProps {
   onClose: () => void;
@@ -80,7 +85,33 @@ interface TutorialOverlayProps {
 
 export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
   const [step, setStep] = useState(0);
-  const isLast = step === slides.length - 1;
+  const [spotlight, setSpotlight] = useState<SpotlightRect | null>(null);
+  const current = steps[step];
+  const isLast = step === steps.length - 1;
+
+  const updateSpotlight = useCallback(() => {
+    if (current.targetSelector) {
+      const el = document.querySelector(current.targetSelector);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const padding = 8;
+        setSpotlight({
+          top: rect.top - padding,
+          left: rect.left - padding,
+          width: rect.width + padding * 2,
+          height: rect.height + padding * 2,
+        });
+        return;
+      }
+    }
+    setSpotlight(null);
+  }, [current.targetSelector]);
+
+  useEffect(() => {
+    updateSpotlight();
+    window.addEventListener('resize', updateSpotlight);
+    return () => window.removeEventListener('resize', updateSpotlight);
+  }, [updateSpotlight]);
 
   const handleNext = () => {
     if (isLast) {
@@ -96,68 +127,148 @@ export const TutorialOverlay = ({ onClose }: TutorialOverlayProps) => {
     onClose();
   };
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md"
-    >
-      <div className="relative w-full max-w-md mx-4">
-        {/* Skip */}
-        <button
-          onClick={handleSkip}
-          className="absolute -top-10 right-0 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          건너뛰기
-        </button>
+  // Calculate tooltip position relative to spotlight
+  const getTooltipStyle = (): React.CSSProperties => {
+    if (!spotlight || !current.tooltipPosition) {
+      // Center the card
+      return {
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+      };
+    }
 
-        {/* Card */}
-        <div className="bg-card border border-border rounded-2xl p-8 shadow-2xl overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -30 }}
-              transition={{ duration: 0.25 }}
-              className="space-y-6"
-            >
-              <div className="flex items-center gap-4">
-                {slides[step].icon}
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">{slides[step].title}</h2>
-                  <p className="text-sm text-muted-foreground">{slides[step].description}</p>
-                </div>
-              </div>
-              <div className="pl-1">{slides[step].details}</div>
-            </motion.div>
-          </AnimatePresence>
+    const gap = 16;
+    const pos = current.tooltipPosition;
+
+    switch (pos) {
+      case 'right':
+        return {
+          position: 'fixed',
+          top: spotlight.top,
+          left: spotlight.left + spotlight.width + gap,
+        };
+      case 'left':
+        return {
+          position: 'fixed',
+          top: spotlight.top + spotlight.height / 2,
+          left: spotlight.left - gap,
+          transform: 'translate(-100%, -50%)',
+        };
+      case 'bottom':
+        return {
+          position: 'fixed',
+          top: spotlight.top + spotlight.height + gap,
+          left: spotlight.left + spotlight.width / 2,
+          transform: 'translateX(-50%)',
+        };
+      case 'top':
+        return {
+          position: 'fixed',
+          top: spotlight.top - gap,
+          left: spotlight.left + spotlight.width / 2,
+          transform: 'translate(-50%, -100%)',
+        };
+      default:
+        return {
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+        };
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50">
+      {/* Dark overlay with spotlight cutout using CSS mask */}
+      <div
+        className="absolute inset-0 transition-all duration-300"
+        style={{
+          background: 'rgba(0,0,0,0.75)',
+          ...(spotlight
+            ? {
+                maskImage: `radial-gradient(ellipse ${spotlight.width * 0.7}px ${spotlight.height * 0.7}px at ${spotlight.left + spotlight.width / 2}px ${spotlight.top + spotlight.height / 2}px, transparent 60%, black 100%)`,
+                WebkitMaskImage: `radial-gradient(ellipse ${spotlight.width * 0.7}px ${spotlight.height * 0.7}px at ${spotlight.left + spotlight.width / 2}px ${spotlight.top + spotlight.height / 2}px, transparent 60%, black 100%)`,
+              }
+            : {}),
+        }}
+        onClick={handleNext}
+      />
+
+      {/* Spotlight ring */}
+      {spotlight && (
+        <motion.div
+          layoutId="spotlight-ring"
+          className="absolute rounded-xl border-2 border-primary/60 pointer-events-none"
+          style={{
+            top: spotlight.top,
+            left: spotlight.left,
+            width: spotlight.width,
+            height: spotlight.height,
+            boxShadow: '0 0 20px hsl(187 80% 48% / 0.3), 0 0 60px hsl(187 80% 48% / 0.1)',
+          }}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+        />
+      )}
+
+      {/* Tooltip card */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={step}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.25 }}
+          style={getTooltipStyle()}
+          className="z-50 w-72 bg-card border border-border rounded-xl p-5 shadow-2xl"
+        >
+          <div className="flex items-start gap-3 mb-3">
+            {current.icon}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-foreground">{current.title}</h3>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{current.description}</p>
+            </div>
+          </div>
+
+          {current.details && <div className="mb-3 pl-1">{current.details}</div>}
 
           {/* Footer */}
-          <div className="flex items-center justify-between mt-8">
-            {/* Dots */}
-            <div className="flex gap-2">
-              {slides.map((_, i) => (
+          <div className="flex items-center justify-between pt-2 border-t border-border/50">
+            <div className="flex gap-1.5">
+              {steps.map((_, i) => (
                 <div
                   key={i}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    i === step ? 'bg-primary' : 'bg-muted-foreground/30'
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                    i === step ? 'bg-primary' : i < step ? 'bg-primary/40' : 'bg-muted-foreground/20'
                   }`}
                 />
               ))}
             </div>
 
-            <button
-              onClick={handleNext}
-              className="flex items-center gap-1 px-5 py-2 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              {isLast ? '시작하기' : '다음'}
-              {!isLast && <ChevronRight className="w-4 h-4" />}
-            </button>
+            <div className="flex items-center gap-3">
+              {step === 0 && (
+                <button
+                  onClick={handleSkip}
+                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  건너뛰기
+                </button>
+              )}
+              <button
+                onClick={handleNext}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
+                {isLast ? '시작하기' : '다음'}
+                {!isLast && <ChevronRight className="w-3 h-3" />}
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
-    </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    </div>
   );
 };
