@@ -229,6 +229,22 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error('Error fetching metadata:', error);
+    // Graceful fallback: return partial metadata from the URL itself
+    try {
+      const { url } = await req.clone().json().catch(() => ({ url: '' }));
+      if (url) {
+        const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+        const pathTitle = urlObj.pathname.replace(/\//g, ' ').trim() || urlObj.hostname;
+        return new Response(JSON.stringify({
+          title: pathTitle,
+          thumbnail: '',
+          description: '',
+          site_name: urlObj.hostname,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } catch (_) { /* ignore */ }
     return new Response(JSON.stringify({ error: 'Failed to fetch metadata' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
