@@ -54,7 +54,8 @@ async function fetchYouTubeMetadata(url: string): Promise<UrlMetadata> {
   // 1. Try oEmbed for basic info (title, author)
   try {
     const oembedRes = await fetch(
-      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
+      { signal: AbortSignal.timeout(10000) }
     );
     if (oembedRes.ok) {
       const data = await oembedRes.json();
