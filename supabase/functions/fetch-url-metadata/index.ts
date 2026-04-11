@@ -206,16 +206,18 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let rawUrl = '';
   try {
-    const { url } = await req.json();
-    if (!url) {
+    const body = await req.json();
+    rawUrl = body.url || '';
+    if (!rawUrl) {
       return new Response(JSON.stringify({ error: 'URL is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    let formattedUrl = url.trim();
+    let formattedUrl = rawUrl.trim();
     if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
       formattedUrl = `https://${formattedUrl}`;
     }
@@ -230,10 +232,9 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error fetching metadata:', error);
     // Graceful fallback: return partial metadata from the URL itself
-    try {
-      const { url } = await req.clone().json().catch(() => ({ url: '' }));
-      if (url) {
-        const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+    if (rawUrl) {
+      try {
+        const urlObj = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
         const pathTitle = urlObj.pathname.replace(/\//g, ' ').trim() || urlObj.hostname;
         return new Response(JSON.stringify({
           title: pathTitle,
@@ -243,8 +244,8 @@ Deno.serve(async (req) => {
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
-      }
-    } catch (_) { /* ignore */ }
+      } catch (_) { /* ignore */ }
+    }
     return new Response(JSON.stringify({ error: 'Failed to fetch metadata' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
