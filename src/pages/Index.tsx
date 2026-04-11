@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Plus, LogOut } from 'lucide-react';
 import { SynapseCanvas } from '@/components/SynapseCanvas';
-import { OnboardingModal } from '@/components/OnboardingModal';
 import { CaptureModal } from '@/components/CaptureModal';
 import { NodeDetailPanel } from '@/components/NodeDetailPanel';
 import { useGalaxyStore } from '@/stores/galaxyStore';
@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { SynapseLogo } from '@/components/SynapseLogo';
 
 const Index = () => {
+  const navigate = useNavigate();
   const gameState = useGalaxyStore(s => s.gameState);
   const searchQuery = useGalaxyStore(s => s.searchQuery);
   const searchResults = useGalaxyStore(s => s.searchResults);
@@ -23,16 +24,18 @@ const Index = () => {
     if (user) initFromDB();
   }, [user]);
 
-  if (gameState === 'loading') {
+  useEffect(() => {
+    if (gameState === 'onboarding') {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [gameState, navigate]);
+
+  if (gameState === 'loading' || gameState === 'onboarding') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground animate-pulse">네트워크 불러오는 중...</p>
       </div>
     );
-  }
-
-  if (gameState === 'onboarding') {
-    return <OnboardingModal />;
   }
 
   return (

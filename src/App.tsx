@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
 import Landing from "./pages/Landing.tsx";
+import Onboarding from "./pages/Onboarding.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/onboarding" element={user ? <Onboarding /> : <Auth />} />
       <Route path="/network" element={user ? <Index /> : <Auth />} />
       {/* Legacy route redirect */}
       <Route path="/galaxy" element={user ? <Index /> : <Auth />} />
