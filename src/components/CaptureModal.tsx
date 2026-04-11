@@ -453,7 +453,7 @@ export function CaptureModal() {
           <button
             onClick={async () => {
               if (!canSubmit) return;
-              window.gtag?.('event', 'click_add_capture', { content_type: contentType });
+              (window as any).gtag?.('event', 'click_add_capture', { content_type: contentType });
               setSaving(true);
               try {
                 if (titleGenPromiseRef.current) {

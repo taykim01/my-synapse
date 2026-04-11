@@ -116,7 +116,7 @@ const Index = () => {
 
       {/* FAB */}
       <button
-        onClick={() => { window.gtag?.('event', 'click_new_capture'); openCaptureModal(); }}
+        onClick={() => { (window as any).gtag?.('event', 'click_new_capture'); openCaptureModal(); }}
         className="absolute bottom-10 right-10 z-10 w-14 h-14 bg-accent text-accent-foreground rounded-full flex items-center justify-center shadow-[0_0_20px_hsl(160,84%,39%,0.4)] hover:scale-105 transition-transform"
       >
         <Plus size={24} />
