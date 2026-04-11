@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, LogOut } from 'lucide-react';
+import { Search, Plus, LogOut, HelpCircle } from 'lucide-react';
 import { SynapseCanvas } from '@/components/SynapseCanvas';
 import { CaptureModal } from '@/components/CaptureModal';
 import { NodeDetailPanel } from '@/components/NodeDetailPanel';
