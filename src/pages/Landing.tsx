@@ -246,7 +246,7 @@ export default function Landing() {
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
             <button
-              onClick={() => navigate('/auth?mode=signup')}
+              onClick={() => { window.gtag?.('event', 'click_signup', { location: 'hero' }); navigate('/auth?mode=signup'); }}
               className="group px-8 py-3.5 bg-accent text-accent-foreground rounded-full font-display font-medium text-sm tracking-wide hover:bg-accent/90 transition-all flex items-center justify-center gap-2"
             >
               시작하기
@@ -398,7 +398,7 @@ export default function Landing() {
             무료로 시작하고, 지식이 연결되는 경험을 느껴보세요.
           </p>
           <button
-            onClick={() => navigate('/auth?mode=signup')}
+            onClick={() => { window.gtag?.('event', 'click_signup', { location: 'cta' }); navigate('/auth?mode=signup'); }}
             className="group px-10 py-4 bg-accent text-accent-foreground rounded-full font-display font-medium tracking-wide hover:bg-accent/90 transition-all inline-flex items-center gap-2"
           >
             무료로 시작하기

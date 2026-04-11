@@ -103,7 +103,7 @@ export function OnboardingModal() {
         </div>
 
         <button
-          onClick={handleStart}
+          onClick={() => { window.gtag?.('event', 'click_create_network'); handleStart(); }}
           className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground font-medium py-3 rounded-lg transition-colors glow-secondary"
         >
           네트워크 생성
