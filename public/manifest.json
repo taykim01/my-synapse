@@ -1,0 +1,21 @@
+{
+  "name": "Synapse",
+  "short_name": "Synapse",
+  "description": "툭 던지면, 알아서 정리되는 메모앱.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
