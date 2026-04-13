@@ -9,6 +9,7 @@ import Auth from "./pages/Auth.tsx";
 import Landing from "./pages/Landing.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import Share from "./pages/Share.tsx";
+import IOSShareGuide from "./pages/IOSShareGuide.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
