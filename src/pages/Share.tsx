@@ -89,18 +89,19 @@ export default function Share() {
 
         // Step 3: Insert capture with full data
         setStatus("저장 중...");
-        const { error: insertError } = await supabase.from("captures").insert({
+        const capturePayload = {
           creator_id: user.id,
           title: resolvedTitle,
           content_type: isLink ? "LINK" : "TEXT",
           content_url: sharedUrl || null,
           description: text || null,
           source: sharedUrl ? extractDomain(sharedUrl) : null,
-          connected_to: aiResult.keyword_id,
-          metadata,
-          ai_caption: aiResult.ai_caption,
-          embedding: aiResult.embedding,
-        });
+          connected_to: aiResult.keyword_id as string,
+          metadata: metadata as import("@/integrations/supabase/types").Json,
+          ai_caption: aiResult.ai_caption as string,
+          embedding: aiResult.embedding as string,
+        };
+        const { error: insertError } = await supabase.from("captures").insert(capturePayload);
 
         if (insertError) throw insertError;
 
