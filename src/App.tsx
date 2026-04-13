@@ -8,6 +8,7 @@ import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
 import Landing from "./pages/Landing.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
+import Share from "./pages/Share.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
