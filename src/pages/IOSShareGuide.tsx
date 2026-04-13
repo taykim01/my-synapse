@@ -3,6 +3,7 @@ import { ArrowLeft, Share, Plus, Play, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const PUBLISHED_URL = "https://my-synapse.lovable.app";
+const WEBAPP_URL = "webapp://my-synapse.lovable.app";
 
 const steps = [
   {

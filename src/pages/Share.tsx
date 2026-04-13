@@ -21,9 +21,14 @@ export default function Share() {
     if (processed.current) return;
     processed.current = true;
 
-    const title = searchParams.get("title") || "";
-    const text = searchParams.get("text") || "";
-    const url = searchParams.get("url") || "";
+    // Fallback: parse params from raw URL (handles webapp:// scheme where useSearchParams may fail)
+    const rawUrl = window.location.href;
+    const paramString = rawUrl.includes("?") ? rawUrl.split("?").slice(1).join("?") : "";
+    const fallbackParams = new URLSearchParams(paramString);
+
+    const title = searchParams.get("title") || fallbackParams.get("title") || "";
+    const text = searchParams.get("text") || fallbackParams.get("text") || "";
+    const url = searchParams.get("url") || fallbackParams.get("url") || "";
 
     const sharedUrl = url || extractUrl(text) || "";
     const sharedTitle = title || text.slice(0, 100) || "";
