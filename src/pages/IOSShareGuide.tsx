@@ -20,7 +20,7 @@ const steps = [
     title: "'URL 열기' 동작 추가",
     description: `'동작 추가'를 탭하고 'URL 열기'를 검색하여 추가합니다. URL 필드에 아래 주소를 입력하세요:`,
     icon: ExternalLink,
-    code: `${PUBLISHED_URL}/share?url=단축어입력&title=공유`,
+    code: `${WEBAPP_URL}/share?url=단축어입력&title=공유`,
   },
   {
     title: "공유 시트에 표시 설정",
@@ -39,7 +39,7 @@ const steps = [
     description:
       "URL 열기 동작의 URL 필드에서 '단축어입력' 부분을 지우고, 키보드 위의 변수 목록에서 '단축어 입력'을 탭하여 삽입하세요. 최종 URL이 아래와 같이 되어야 합니다:",
     icon: ExternalLink,
-    code: `${PUBLISHED_URL}/share?url=[단축어 입력]&title=공유`,
+    code: `${WEBAPP_URL}/share?url=[단축어 입력]&title=공유`,
   },
 ];
 export default function IOSShareGuide() {
