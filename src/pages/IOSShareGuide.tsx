@@ -3,6 +3,7 @@ import { ArrowLeft, Share, Plus, Play, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const PUBLISHED_URL = "https://my-synapse.lovable.app";
+const WEBAPP_URL = "webapp://my-synapse.lovable.app";
 
 const steps = [
   {
@@ -19,7 +20,7 @@ const steps = [
     title: "'URL 열기' 동작 추가",
     description: `'동작 추가'를 탭하고 'URL 열기'를 검색하여 추가합니다. URL 필드에 아래 주소를 입력하세요:`,
     icon: ExternalLink,
-    code: `${PUBLISHED_URL}/share?url=단축어입력&title=공유`,
+    code: `${WEBAPP_URL}/share?url=단축어입력&title=공유`,
   },
   {
     title: "공유 시트에 표시 설정",
@@ -38,7 +39,7 @@ const steps = [
     description:
       "URL 열기 동작의 URL 필드에서 '단축어입력' 부분을 지우고, 키보드 위의 변수 목록에서 '단축어 입력'을 탭하여 삽입하세요. 최종 URL이 아래와 같이 되어야 합니다:",
     icon: ExternalLink,
-    code: `${PUBLISHED_URL}/share?url=[단축어 입력]&title=공유`,
+    code: `${WEBAPP_URL}/share?url=[단축어 입력]&title=공유`,
   },
 ];
 export default function IOSShareGuide() {
@@ -109,9 +110,11 @@ export default function IOSShareGuide() {
           </h3>
           <ul className="text-muted-foreground text-sm space-y-1.5 list-disc list-inside">
             <li>
-              <span className="text-primary font-medium">PWA가 홈 화면에 설치되어 있으면</span>, 단축어가 자동으로 Synapse 앱을 열어줍니다. (Safari가 아닌 앱으로 바로 실행)
+              URL 주소는 <span className="text-primary font-medium">webapp://</span>으로 시작해야 PWA 앱이 바로 열립니다.
             </li>
-            <li>PWA 설치 방법: Safari에서 Synapse 접속 → 공유 버튼(□↑) → '홈 화면에 추가'</li>
+            <li>
+              webapp://이 동작하지 않는 경우, <span className="font-mono text-xs">{PUBLISHED_URL}/share?url=[단축어 입력]&title=공유</span>로 대체하세요. (Safari에서 열림)
+            </li>
             <li>공유된 링크는 AI가 자동으로 분석하여 제목, 키워드, 카테고리를 생성합니다.</li>
             <li>설정 후 아무 앱에서 공유 → 'Synapse에 저장'을 탭하면 됩니다.</li>
           </ul>
