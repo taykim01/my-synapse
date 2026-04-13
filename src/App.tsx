@@ -9,6 +9,7 @@ import Auth from "./pages/Auth.tsx";
 import Landing from "./pages/Landing.tsx";
 import Onboarding from "./pages/Onboarding.tsx";
 import Share from "./pages/Share.tsx";
+import IOSShareGuide from "./pages/IOSShareGuide.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ function AppRoutes() {
       <Route path="/onboarding" element={user ? <Onboarding /> : <Auth />} />
       <Route path="/network" element={user ? <Index /> : <Auth />} />
       <Route path="/share" element={<Share />} />
+      <Route path="/ios-share" element={<IOSShareGuide />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
