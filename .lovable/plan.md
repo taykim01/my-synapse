@@ -1,40 +1,37 @@
 
 
-## Web Share Target 구현 계획
+## Problem Analysis
 
-### 개요
-다른 앱에서 콘텐츠(URL, 텍스트)를 공유할 때 Synapse PWA가 공유 대상으로 나타나도록 설정합니다.
+When using the iOS Shortcut:
+- **`webapp://synapse.site/share?url=...`** opens the PWA but the capture fails -- likely because `webapp://` is a non-standard scheme and `BrowserRouter` / `useSearchParams` can't parse the query params from it.
+- **`https://synapse.site/share?url=...`** opens in Safari (not the PWA) but capture works perfectly.
 
-### 변경 사항
+## Root Cause
 
-**1. `vite-plugin-pwa` 설치 및 설정** (`vite.config.ts`)
-- `vite-plugin-pwa` 패키지 설치
-- 프리뷰/iframe 환경에서는 서비스 워커 비활성화
-- `navigateFallbackDenylist`에 `/~oauth` 추가
-- manifest에 `share_target` 정의:
-```json
-"share_target": {
-  "action": "/share",
-  "method": "GET",
-  "params": {
-    "title": "title",
-    "text": "text",
-    "url": "url"
-  }
-}
+`webapp://` is an undocumented iOS scheme. When the PWA opens via it, `window.location.search` is likely empty or the URL is malformed from React Router's perspective. `useSearchParams()` returns nothing, so the share page processes an empty capture.
+
+## Plan
+
+### 1. Make Share.tsx resilient to `webapp://` scheme
+
+Instead of relying solely on `useSearchParams()` (which depends on `BrowserRouter` parsing a standard URL), also parse `window.location.href` directly as a fallback. This handles cases where the scheme is non-standard:
+
+```typescript
+// Fallback: parse params from raw URL if useSearchParams is empty
+const rawUrl = window.location.href;
+const paramString = rawUrl.includes("?") ? rawUrl.split("?").slice(1).join("?") : "";
+const fallbackParams = new URLSearchParams(paramString);
+
+const title = searchParams.get("title") || fallbackParams.get("title") || "";
+const text = searchParams.get("text") || fallbackParams.get("text") || "";
+const url = searchParams.get("url") || fallbackParams.get("url") || "";
 ```
 
-**2. 서비스 워커 가드 추가** (`src/main.tsx`)
-- iframe/프리뷰 환경에서 서비스 워커 자동 해제
+### 2. Update iOS Share Guide
 
-**3. 공유 수신 페이지 생성** (`src/pages/Share.tsx`)
-- `/share` 라우트에서 쿼리 파라미터(`title`, `text`, `url`)를 읽어서 자동으로 캡처 생성
-- 캡처 생성 후 `/network` 페이지로 리다이렉트
+Update the recommended shortcut URL to use `webapp://` scheme (since it opens the PWA directly), now that the code will handle it properly. Add a note that if `webapp://` doesn't work on their device, they can fall back to `https://`.
 
-**4. 라우트 등록** (`src/App.tsx`)
-- `/share` 경로 추가
-
-### 제약사항 (사용자에게 안내)
-- 에디터 프리뷰에서는 테스트 불가, 배포 후 모바일에서 PWA 설치 후 테스트 필요
-- iOS Safari에서는 Web Share Target 지원이 제한적 (Android Chrome에서 가장 잘 동작)
+### Files Changed
+- **`src/pages/Share.tsx`** -- Add raw URL parsing fallback
+- **`src/pages/IOSShareGuide.tsx`** -- Update recommended URL scheme to `webapp://` with `https://` fallback note
 
