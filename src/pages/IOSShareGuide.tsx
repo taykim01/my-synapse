@@ -108,9 +108,12 @@ export default function IOSShareGuide() {
             💡 팁
           </h3>
           <ul className="text-muted-foreground text-sm space-y-1.5 list-disc list-inside">
-            <li>단축어 URL에서 '단축어입력' 부분은 자동으로 공유된 URL로 치환됩니다.</li>
+            <li>
+              <span className="text-primary font-medium">PWA가 홈 화면에 설치되어 있으면</span>, 단축어가 자동으로 Synapse 앱을 열어줍니다. (Safari가 아닌 앱으로 바로 실행)
+            </li>
+            <li>PWA 설치 방법: Safari에서 Synapse 접속 → 공유 버튼(□↑) → '홈 화면에 추가'</li>
+            <li>공유된 링크는 AI가 자동으로 분석하여 제목, 키워드, 카테고리를 생성합니다.</li>
             <li>설정 후 아무 앱에서 공유 → 'Synapse에 저장'을 탭하면 됩니다.</li>
-            <li>PWA가 설치되어 있어야 저장 후 앱으로 바로 이동합니다.</li>
           </ul>
         </div>
 
