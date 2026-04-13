@@ -16,25 +16,31 @@ const steps = [
     icon: Plus,
   },
   {
-    title: "'공유 시트에서 받기' 추가",
-    description:
-      "동작 추가 → '공유 시트에서 받기'를 검색하여 추가합니다. 입력 유형을 URL, 텍스트로 설정하세요.",
-    icon: Share,
-  },
-  {
-    title: "'Safari에서 URL 열기' 추가",
-    description: `동작 추가 → 'URL 열기'를 검색하여 추가합니다. URL을 아래와 같이 설정하세요:`,
+    title: "'URL 열기' 동작 추가",
+    description: `'동작 추가'를 탭하고 'URL 열기'를 검색하여 추가합니다. URL 필드에 아래 주소를 입력하세요:`,
     icon: ExternalLink,
     code: `${PUBLISHED_URL}/share?url=단축어입력&title=공유`,
   },
   {
-    title: "단축어 이름 설정",
+    title: "공유 시트에 표시 설정",
     description:
-      "상단의 단축어 이름을 'Synapse에 저장'으로 변경하고, '공유 시트에 표시'를 켜세요.",
+      "상단의 단축어 이름을 탭하여 'Synapse에 저장'으로 변경합니다. 그 옆 ⓘ (또는 설정 아이콘)을 탭한 뒤 '공유 시트에 표시'를 켜세요.",
     icon: Share,
   },
+  {
+    title: "입력 유형 설정",
+    description:
+      "같은 설정 화면에서 '공유 시트 유형'을 탭하고 'URL'과 '텍스트'만 선택합니다. 이렇게 하면 URL이나 텍스트를 공유할 때만 이 단축어가 나타납니다.",
+    icon: Share,
+  },
+  {
+    title: "'단축어 입력'을 URL에 연결",
+    description:
+      "URL 열기 동작의 URL 필드에서 '단축어입력' 부분을 지우고, 키보드 위의 변수 목록에서 '단축어 입력'을 탭하여 삽입하세요. 최종 URL이 아래와 같이 되어야 합니다:",
+    icon: ExternalLink,
+    code: `${PUBLISHED_URL}/share?url=[단축어 입력]&title=공유`,
+  },
 ];
-
 export default function IOSShareGuide() {
   const navigate = useNavigate();
 
